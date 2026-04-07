@@ -1,0 +1,9 @@
+[build]
+dockerfilePath = "backend/TimeCapsule.API/Dockerfile"
+buildCommand = ""
+
+[deploy]
+startCommand = "dotnet TimeCapsule.API.dll"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
