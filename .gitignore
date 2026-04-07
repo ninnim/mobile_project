@@ -1,0 +1,20 @@
+/.claude
+/CLAUDE.md
+/database
+/frontend
+/Hi AI Agent Team! I have a massive and e.md
+/local_data_backup.sql
+/local_data_backup2.sql
+/mobile_project.sln
+/prompts
+/run-dev.bat
+/~
+
+# Build output
+**/bin/
+**/obj/
+
+# Secrets (never commit these)
+**/firebase-service-account.json
+**/appsettings.Local.json
+**/appsettings.Development.json
