@@ -4,10 +4,10 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["TimeCapsule.API.csproj", "./"]
-RUN dotnet restore
+COPY ["backend/TimeCapsule.API/TimeCapsule.API.csproj", "backend/TimeCapsule.API/"]
+RUN dotnet restore "backend/TimeCapsule.API/TimeCapsule.API.csproj"
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet publish "backend/TimeCapsule.API/TimeCapsule.API.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
