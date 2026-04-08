@@ -28,8 +28,33 @@ public class PostService : IPostService
         _db.Posts.Add(post);
         await _db.SaveChangesAsync();
 
-        var user = await _db.Users.FindAsync(userId);
-        return MapToDto(post, user);
+        // Handle tagged users
+        if (!string.IsNullOrWhiteSpace(dto.TaggedUserIds))
+        {
+            var tagIds = dto.TaggedUserIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null)
+                .Where(g => g.HasValue && g.Value != userId)
+                .Select(g => g!.Value)
+                .Distinct()
+                .Take(20)
+                .ToList();
+
+            var validUsers = await _db.Users.Where(u => tagIds.Contains(u.Id)).Select(u => u.Id).ToListAsync();
+            foreach (var tagUserId in validUsers)
+            {
+                _db.PostTags.Add(new PostTag { PostId = post.Id, UserId = tagUserId });
+            }
+            if (validUsers.Count > 0) await _db.SaveChangesAsync();
+        }
+
+        // Re-fetch with includes for proper DTO mapping
+        var fullPost = await _db.Posts
+            .Include(p => p.User)
+            .Include(p => p.Likes)
+            .Include(p => p.Comments)
+            .Include(p => p.Tags).ThenInclude(t => t.User)
+            .FirstAsync(p => p.Id == post.Id);
+        return MapToDto(fullPost, fullPost.User);
     }
 
     public async Task<PaginatedResponse<PostResponseDto>> GetFeedAsync(int page, int pageSize, Guid? currentUserId = null)
@@ -41,6 +66,7 @@ public class PostService : IPostService
             .Include(p => p.User)
             .Include(p => p.Likes)
             .Include(p => p.Comments)
+            .Include(p => p.Tags).ThenInclude(t => t.User)
             .OrderByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -59,6 +85,7 @@ public class PostService : IPostService
             .Include(p => p.User)
             .Include(p => p.Likes)
             .Include(p => p.Comments)
+            .Include(p => p.Tags).ThenInclude(t => t.User)
             .Where(p => p.UserId == userId)
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
@@ -122,6 +149,12 @@ public class PostService : IPostService
         MediaUrl = p.MediaUrl, CreatedAt = p.CreatedAt,
         LikeCount = p.Likes?.Count ?? 0,
         CommentCount = p.Comments?.Count ?? 0,
-        IsLikedByMe = currentUserId.HasValue && (p.Likes?.Any(l => l.UserId == currentUserId.Value) ?? false)
+        IsLikedByMe = currentUserId.HasValue && (p.Likes?.Any(l => l.UserId == currentUserId.Value) ?? false),
+        TaggedUsers = p.Tags?.Select(t => new TaggedUserDto
+        {
+            UserId = t.UserId,
+            DisplayName = t.User?.DisplayName ?? "",
+            ProfilePictureUrl = t.User?.ProfilePictureUrl
+        }).ToList() ?? new()
     };
 }

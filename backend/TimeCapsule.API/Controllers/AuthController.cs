@@ -58,6 +58,21 @@ public class AuthController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
+    [Authorize]
+    [HttpPut("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(new { error = "Invalid input." });
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        try
+        {
+            await _auth.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
+            return Ok(new { message = "Password changed successfully." });
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     [HttpGet("users/{userId:guid}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetUserProfile(Guid userId)

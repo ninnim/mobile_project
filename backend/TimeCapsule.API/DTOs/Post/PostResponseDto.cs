@@ -11,7 +11,15 @@ public class PostResponseDto
     public int LikeCount { get; set; }
     public int CommentCount { get; set; }
     public bool IsLikedByMe { get; set; }
+    public List<TaggedUserDto> TaggedUsers { get; set; } = new();
     public DateTime CreatedAt { get; set; }
+}
+
+public class TaggedUserDto
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? ProfilePictureUrl { get; set; }
 }
 
 public class PostCommentDto

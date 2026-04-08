@@ -70,11 +70,19 @@ public class AuthService : IAuthService
         return new AuthResponseDto { Token = GenerateToken(user), User = ToUserDto(user) };
     }
 
-    public async Task<UserDto> GetCurrentUserAsync(Guid userId)
+    public async Task<UserProfileDto> GetCurrentUserAsync(Guid userId)
     {
         var user = await _db.Users.FindAsync(userId)
             ?? throw new KeyNotFoundException("User not found.");
-        return ToUserDto(user);
+        var capsuleCount = await _db.Capsules.CountAsync(c => c.SenderId == userId);
+        var postCount = await _db.Posts.CountAsync(p => p.UserId == userId);
+        return new UserProfileDto
+        {
+            Id = user.Id, DisplayName = user.DisplayName, Email = user.Email,
+            ProfilePictureUrl = user.ProfilePictureUrl, Bio = user.Bio,
+            AccentColor = user.AccentColor, CreatedAt = user.CreatedAt,
+            CapsuleCount = capsuleCount, PostCount = postCount
+        };
     }
 
     public async Task<UserDto> UpdateProfileAsync(Guid userId, UpdateProfileDto dto, IFormFile? profilePicture)
@@ -245,9 +253,21 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        var user = await _db.Users.FindAsync(userId)
+            ?? throw new KeyNotFoundException("User not found.");
+        if (user.PasswordHash == null || !BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash))
+            throw new UnauthorizedAccessException("Current password is incorrect.");
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Password changed for user {UserId}", userId);
+        return true;
+    }
+
     private static UserDto ToUserDto(User u) => new()
     {
         Id = u.Id, Email = u.Email, DisplayName = u.DisplayName,
-        ProfilePictureUrl = u.ProfilePictureUrl, CreatedAt = u.CreatedAt
+        ProfilePictureUrl = u.ProfilePictureUrl, Bio = u.Bio, CreatedAt = u.CreatedAt
     };
 }
