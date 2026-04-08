@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<PostLike> PostLikes => Set<PostLike>();
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostTag> PostTags => Set<PostTag>();
+    public DbSet<PostReaction> PostReactions => Set<PostReaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,5 +105,15 @@ public class AppDbContext : DbContext
             .HasOne(pt => pt.Post).WithMany(p => p.Tags).HasForeignKey(pt => pt.PostId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<PostTag>()
             .HasOne(pt => pt.User).WithMany().HasForeignKey(pt => pt.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostReaction>()
+            .HasIndex(pr => new { pr.PostId, pr.UserId }).IsUnique();
+        modelBuilder.Entity<PostReaction>()
+            .HasOne(pr => pr.Post).WithMany(p => p.Reactions).HasForeignKey(pr => pr.PostId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<PostReaction>()
+            .HasOne(pr => pr.User).WithMany().HasForeignKey(pr => pr.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Post>()
+            .HasOne(p => p.SharedPost).WithMany().HasForeignKey(p => p.SharedPostId).OnDelete(DeleteBehavior.SetNull);
     }
 }

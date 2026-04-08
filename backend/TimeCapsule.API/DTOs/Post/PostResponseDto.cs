@@ -11,7 +11,21 @@ public class PostResponseDto
     public int LikeCount { get; set; }
     public int CommentCount { get; set; }
     public bool IsLikedByMe { get; set; }
+    public Dictionary<string, int> ReactionCounts { get; set; } = new();
+    public string? MyReaction { get; set; }
+    public SharedPostDto? SharedPost { get; set; }
     public List<TaggedUserDto> TaggedUsers { get; set; } = new();
+    public DateTime CreatedAt { get; set; }
+}
+
+public class SharedPostDto
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string? UserProfilePicture { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public string? MediaUrl { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

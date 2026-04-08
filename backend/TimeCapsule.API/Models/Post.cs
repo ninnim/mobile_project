@@ -15,10 +15,17 @@ public class Post
     public string? MediaUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Reference to the original post when this is a share</summary>
+    public Guid? SharedPostId { get; set; }
+
     [ForeignKey("UserId")]
     public User User { get; set; } = null!;
 
+    [ForeignKey("SharedPostId")]
+    public Post? SharedPost { get; set; }
+
     public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
+    public ICollection<PostReaction> Reactions { get; set; } = new List<PostReaction>();
     public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
     public ICollection<PostTag> Tags { get; set; } = new List<PostTag>();
 }

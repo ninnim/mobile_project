@@ -23,6 +23,23 @@ public class PostController : ControllerBase
         catch (Exception ex) { return BadRequest(new { error = ex.Message }); }
     }
 
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromForm] UpdatePostDto dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(new { error = "Invalid input." });
+        try { return Ok(await _posts.UpdateAsync(id, UserId, dto)); }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { error = ex.Message }); }
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try { await _posts.DeleteAsync(id, UserId); return Ok(new { message = "Post deleted." }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { error = ex.Message }); }
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetFeed([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
@@ -49,6 +66,27 @@ public class PostController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("{id:guid}/reactions")]
+    public async Task<IActionResult> React(Guid id, [FromBody] ReactDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.ReactionType))
+            return BadRequest(new { error = "ReactionType is required." });
+        try
+        {
+            var type = await _posts.ReactAsync(id, UserId, dto.ReactionType);
+            return Ok(new { reactionType = type });
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpDelete("{id:guid}/reactions")]
+    public async Task<IActionResult> RemoveReaction(Guid id)
+    {
+        await _posts.RemoveReactionAsync(id, UserId);
+        return Ok();
+    }
+
     [HttpPost("{id:guid}/comments")]
     public async Task<IActionResult> AddComment(Guid id, [FromBody] CreateCommentDto dto)
     {
@@ -60,4 +98,9 @@ public class PostController : ControllerBase
     [HttpGet("{id:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid id)
         => Ok(await _posts.GetCommentsAsync(id));
+}
+
+public class ReactDto
+{
+    public string ReactionType { get; set; } = string.Empty;
 }
