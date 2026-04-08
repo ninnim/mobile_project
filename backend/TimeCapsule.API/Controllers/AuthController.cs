@@ -141,4 +141,95 @@ public class AuthController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok();
     }
+
+    private static readonly HashSet<string> ValidReactionTypes = new(StringComparer.OrdinalIgnoreCase)
+        { "like", "love", "haha", "wow", "sad", "angry" };
+
+    [Authorize]
+    [HttpPost("users/{profileUserId:guid}/reactions")]
+    public async Task<IActionResult> ReactToProfile(Guid profileUserId, [FromBody] ProfileReactDto dto)
+    {
+        var reactorId = Guid.Parse(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)!);
+        if (string.IsNullOrWhiteSpace(dto.ReactionType) || !ValidReactionTypes.Contains(dto.ReactionType))
+            return BadRequest(new { error = "Invalid reaction type." });
+        if (reactorId == profileUserId) return BadRequest(new { error = "Cannot react to your own profile." });
+
+        var profileExists = await _db.Users.AnyAsync(u => u.Id == profileUserId);
+        if (!profileExists) return NotFound(new { error = "User not found." });
+
+        var existing = await _db.ProfileReactions
+            .FirstOrDefaultAsync(r => r.ProfileUserId == profileUserId && r.ReactorUserId == reactorId);
+
+        if (existing != null)
+        {
+            existing.ReactionType = dto.ReactionType.ToLowerInvariant();
+            existing.CreatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _db.ProfileReactions.Add(new TimeCapsule.API.Models.ProfileReaction
+            {
+                ProfileUserId = profileUserId,
+                ReactorUserId = reactorId,
+                ReactionType = dto.ReactionType.ToLowerInvariant()
+            });
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new { reactionType = dto.ReactionType.ToLowerInvariant() });
+    }
+
+    [Authorize]
+    [HttpDelete("users/{profileUserId:guid}/reactions")]
+    public async Task<IActionResult> RemoveProfileReaction(Guid profileUserId)
+    {
+        var reactorId = Guid.Parse(User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)!);
+        var existing = await _db.ProfileReactions
+            .FirstOrDefaultAsync(r => r.ProfileUserId == profileUserId && r.ReactorUserId == reactorId);
+        if (existing != null)
+        {
+            _db.ProfileReactions.Remove(existing);
+            await _db.SaveChangesAsync();
+        }
+        return Ok();
+    }
+
+    [HttpGet("users/{profileUserId:guid}/reactions")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetProfileReactions(Guid profileUserId)
+    {
+        Guid? currentUserId = null;
+        var userIdClaim = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim != null) currentUserId = Guid.Parse(userIdClaim);
+
+        var reactions = await _db.ProfileReactions
+            .Include(r => r.Reactor)
+            .Where(r => r.ProfileUserId == profileUserId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        var counts = reactions
+            .GroupBy(r => r.ReactionType.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return Ok(new TimeCapsule.API.DTOs.Post.ProfileReactionDto
+        {
+            ReactionCounts = counts,
+            TotalReactions = reactions.Count,
+            MyReaction = currentUserId.HasValue
+                ? reactions.FirstOrDefault(r => r.ReactorUserId == currentUserId.Value)?.ReactionType
+                : null,
+            TopReactors = reactions.Take(10).Select(r => new TimeCapsule.API.DTOs.Post.ReactorDto
+            {
+                UserId = r.ReactorUserId,
+                DisplayName = r.Reactor?.DisplayName ?? "",
+                ProfilePictureUrl = r.Reactor?.ProfilePictureUrl,
+                ReactionType = r.ReactionType
+            }).ToList()
+        });
+    }
+}
+
+public class ProfileReactDto
+{
+    public string ReactionType { get; set; } = string.Empty;
 }

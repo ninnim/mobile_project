@@ -14,4 +14,5 @@ public class PostComment
 
     [ForeignKey("PostId")] public Post Post { get; set; } = null!;
     [ForeignKey("UserId")] public User User { get; set; } = null!;
+    public ICollection<CommentReaction> Reactions { get; set; } = new List<CommentReaction>();
 }

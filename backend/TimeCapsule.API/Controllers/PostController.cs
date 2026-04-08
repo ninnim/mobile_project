@@ -87,6 +87,10 @@ public class PostController : ControllerBase
         return Ok();
     }
 
+    [HttpGet("{id:guid}/reactions")]
+    public async Task<IActionResult> GetPostReactors(Guid id)
+        => Ok(await _posts.GetPostReactorsAsync(id));
+
     [HttpPost("{id:guid}/comments")]
     public async Task<IActionResult> AddComment(Guid id, [FromBody] CreateCommentDto dto)
     {
@@ -97,7 +101,32 @@ public class PostController : ControllerBase
 
     [HttpGet("{id:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid id)
-        => Ok(await _posts.GetCommentsAsync(id));
+        => Ok(await _posts.GetCommentsAsync(id, UserId));
+
+    [HttpPost("{id:guid}/comments/{commentId:guid}/reactions")]
+    public async Task<IActionResult> ReactToComment(Guid id, Guid commentId, [FromBody] ReactDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.ReactionType))
+            return BadRequest(new { error = "ReactionType is required." });
+        try
+        {
+            var type = await _posts.ReactToCommentAsync(commentId, UserId, dto.ReactionType);
+            return Ok(new { reactionType = type });
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
+    [HttpDelete("{id:guid}/comments/{commentId:guid}/reactions")]
+    public async Task<IActionResult> RemoveCommentReaction(Guid id, Guid commentId)
+    {
+        await _posts.RemoveCommentReactionAsync(commentId, UserId);
+        return Ok();
+    }
+
+    [HttpGet("{id:guid}/comments/{commentId:guid}/reactions")]
+    public async Task<IActionResult> GetCommentReactors(Guid id, Guid commentId)
+        => Ok(await _posts.GetCommentReactorsAsync(commentId));
 }
 
 public class ReactDto

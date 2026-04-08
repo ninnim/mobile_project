@@ -44,9 +44,35 @@ public class PostCommentDto
     public string? UserProfilePicture { get; set; }
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public Dictionary<string, int> ReactionCounts { get; set; } = new();
+    public string? MyReaction { get; set; }
+    public int TotalReactions { get; set; }
 }
 
 public class CreateCommentDto
 {
     public string Content { get; set; } = string.Empty;
+}
+
+public class ReactorDto
+{
+    public Guid UserId { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string? ProfilePictureUrl { get; set; }
+    public string ReactionType { get; set; } = string.Empty;
+}
+
+public class ReactionSummaryDto
+{
+    public Dictionary<string, int> Counts { get; set; } = new();
+    public int Total { get; set; }
+    public List<ReactorDto> Reactors { get; set; } = new();
+}
+
+public class ProfileReactionDto
+{
+    public Dictionary<string, int> ReactionCounts { get; set; } = new();
+    public int TotalReactions { get; set; }
+    public string? MyReaction { get; set; }
+    public List<ReactorDto> TopReactors { get; set; } = new();
 }

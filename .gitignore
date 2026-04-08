@@ -1,7 +1,6 @@
 /.claude
 /CLAUDE.md
 /database
-/frontend
 /Hi AI Agent Team! I have a massive and e.md
 /local_data_backup.sql
 /local_data_backup2.sql
@@ -14,7 +13,17 @@
 **/bin/
 **/obj/
 
+# Flutter build outputs
+/frontend/time_capsule_flutter/build/
+/frontend/time_capsule_flutter/.dart_tool/
+/frontend/time_capsule_flutter/.flutter-plugins
+/frontend/time_capsule_flutter/.flutter-plugins-dependencies
+/frontend/TimeCapsuleApp/node_modules/
+/frontend/TimeCapsuleApp/.expo/
+
 # Secrets (never commit these)
 **/firebase-service-account.json
 **/appsettings.Local.json
 **/appsettings.Development.json
+**/google-services.json
+**/GoogleService-Info.plist

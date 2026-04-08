@@ -20,6 +20,8 @@ public class AppDbContext : DbContext
     public DbSet<PostComment> PostComments => Set<PostComment>();
     public DbSet<PostTag> PostTags => Set<PostTag>();
     public DbSet<PostReaction> PostReactions => Set<PostReaction>();
+    public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
+    public DbSet<ProfileReaction> ProfileReactions => Set<ProfileReaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -115,5 +117,21 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Post>()
             .HasOne(p => p.SharedPost).WithMany().HasForeignKey(p => p.SharedPostId).OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<CommentReaction>()
+            .HasIndex(cr => new { cr.CommentId, cr.UserId }).IsUnique();
+        modelBuilder.Entity<CommentReaction>()
+            .HasOne(cr => cr.Comment).WithMany(c => c.Reactions).HasForeignKey(cr => cr.CommentId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<CommentReaction>()
+            .HasOne(cr => cr.User).WithMany().HasForeignKey(cr => cr.UserId).OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ProfileReaction>()
+            .HasIndex(pr => new { pr.ProfileUserId, pr.ReactorUserId }).IsUnique();
+        modelBuilder.Entity<ProfileReaction>()
+            .HasOne(pr => pr.ProfileUser).WithMany().HasForeignKey(pr => pr.ProfileUserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<ProfileReaction>()
+            .HasOne(pr => pr.Reactor).WithMany().HasForeignKey(pr => pr.ReactorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

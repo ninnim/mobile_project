@@ -189,31 +189,128 @@ public class PostService : IPostService
         var post = await _db.Posts.FindAsync(postId) ?? throw new KeyNotFoundException("Post not found.");
         var user = await _db.Users.FindAsync(userId);
         var comment = new PostComment { PostId = postId, UserId = userId, Content = dto.Content.Trim() };
+        comment.User = user!;
         _db.PostComments.Add(comment);
         await _db.SaveChangesAsync();
-        return new PostCommentDto
+        return MapCommentToDto(comment);
+    }
+
+    public async Task<List<PostCommentDto>> GetCommentsAsync(Guid postId, Guid? currentUserId = null)
+    {
+        var comments = await _db.PostComments
+            .Include(c => c.User)
+            .Include(c => c.Reactions).ThenInclude(r => r.User)
+            .Where(c => c.PostId == postId)
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync();
+
+        return comments.Select(c => MapCommentToDto(c, currentUserId)).ToList();
+    }
+
+    public async Task<string> ReactToCommentAsync(Guid commentId, Guid userId, string reactionType)
+    {
+        reactionType = reactionType.ToLowerInvariant();
+        if (!ValidReactions.Contains(reactionType))
+            throw new ArgumentException($"Invalid reaction type. Valid types: {string.Join(", ", ValidReactions)}");
+
+        var exists = await _db.PostComments.AnyAsync(c => c.Id == commentId);
+        if (!exists) throw new KeyNotFoundException("Comment not found.");
+
+        var existing = await _db.CommentReactions
+            .FirstOrDefaultAsync(r => r.CommentId == commentId && r.UserId == userId);
+
+        if (existing != null)
         {
-            Id = comment.Id, UserId = userId,
-            UserName = user?.DisplayName ?? "",
-            UserProfilePicture = user?.ProfilePictureUrl,
-            Content = comment.Content, CreatedAt = comment.CreatedAt
+            existing.ReactionType = reactionType;
+            existing.CreatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _db.CommentReactions.Add(new CommentReaction
+            {
+                Id = Guid.NewGuid(),
+                CommentId = commentId,
+                UserId = userId,
+                ReactionType = reactionType,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        await _db.SaveChangesAsync();
+        return reactionType;
+    }
+
+    public async Task RemoveCommentReactionAsync(Guid commentId, Guid userId)
+    {
+        var reaction = await _db.CommentReactions
+            .FirstOrDefaultAsync(r => r.CommentId == commentId && r.UserId == userId);
+        if (reaction != null)
+        {
+            _db.CommentReactions.Remove(reaction);
+            await _db.SaveChangesAsync();
+        }
+    }
+
+    public async Task<ReactionSummaryDto> GetCommentReactorsAsync(Guid commentId)
+    {
+        var reactions = await _db.CommentReactions
+            .Include(r => r.User)
+            .Where(r => r.CommentId == commentId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        return BuildReactionSummary(reactions.Select(r => (r.ReactionType, r.User)).ToList());
+    }
+
+    public async Task<ReactionSummaryDto> GetPostReactorsAsync(Guid postId)
+    {
+        var reactions = await _db.PostReactions
+            .Include(r => r.User)
+            .Where(r => r.PostId == postId)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        return BuildReactionSummary(reactions.Select(r => (r.ReactionType, r.User)).ToList());
+    }
+
+    private static ReactionSummaryDto BuildReactionSummary(List<(string ReactionType, User? User)> reactions)
+    {
+        var counts = reactions
+            .GroupBy(r => r.ReactionType.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return new ReactionSummaryDto
+        {
+            Counts = counts,
+            Total = reactions.Count,
+            Reactors = reactions.Select(r => new ReactorDto
+            {
+                UserId = r.User?.Id ?? Guid.Empty,
+                DisplayName = r.User?.DisplayName ?? "",
+                ProfilePictureUrl = r.User?.ProfilePictureUrl,
+                ReactionType = r.ReactionType
+            }).ToList()
         };
     }
 
-    public async Task<List<PostCommentDto>> GetCommentsAsync(Guid postId)
+    private static PostCommentDto MapCommentToDto(PostComment c, Guid? currentUserId = null)
     {
-        return await _db.PostComments
-            .Include(c => c.User)
-            .Where(c => c.PostId == postId)
-            .OrderBy(c => c.CreatedAt)
-            .Select(c => new PostCommentDto
-            {
-                Id = c.Id, UserId = c.UserId,
-                UserName = c.User.DisplayName,
-                UserProfilePicture = c.User.ProfilePictureUrl,
-                Content = c.Content, CreatedAt = c.CreatedAt
-            })
-            .ToListAsync();
+        var reactions = c.Reactions ?? new List<CommentReaction>();
+        var counts = reactions
+            .GroupBy(r => r.ReactionType.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        return new PostCommentDto
+        {
+            Id = c.Id, UserId = c.UserId,
+            UserName = c.User?.DisplayName ?? "",
+            UserProfilePicture = c.User?.ProfilePictureUrl,
+            Content = c.Content, CreatedAt = c.CreatedAt,
+            ReactionCounts = counts,
+            TotalReactions = reactions.Count,
+            MyReaction = currentUserId.HasValue
+                ? reactions.FirstOrDefault(r => r.UserId == currentUserId.Value)?.ReactionType
+                : null
+        };
     }
 
     private PostResponseDto MapToDto(Post p, User? u, Guid? currentUserId = null)
