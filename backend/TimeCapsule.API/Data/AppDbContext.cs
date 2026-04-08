@@ -42,6 +42,18 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Capsule>()
+            .HasOne(c => c.Sender)
+            .WithMany(u => u.Capsules)
+            .HasForeignKey(c => c.SenderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Capsule>()
+            .HasOne(c => c.UnlockedByUser)
+            .WithMany()
+            .HasForeignKey(c => c.UnlockedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Capsule>()
             .Property(c => c.Status)
             .HasDefaultValue("Locked");
 
