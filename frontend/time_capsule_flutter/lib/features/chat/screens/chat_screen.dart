@@ -182,7 +182,10 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     });
 
     // Polling fallback: ensures new messages arrive even if SignalR drops
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _pollNewMessages());
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _pollNewMessages(),
+    );
   }
 
   Future<void> _pollNewMessages() async {
