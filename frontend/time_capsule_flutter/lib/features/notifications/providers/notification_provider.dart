@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/network/dio_client.dart';import '../../../core/services/signalr_service.dart';import '../models/notification_model.dart';
+import '../../../core/network/dio_client.dart';
+import '../../../core/services/signalr_service.dart';
+import '../models/notification_model.dart';
 
 class NotificationState {
   final List<NotificationModel> notifications;
@@ -44,11 +46,16 @@ class NotificationState {
 
 class NotificationNotifier extends Notifier<NotificationState> {
   StreamSubscription? _signalRSub;
+  Timer? _fallbackTimer;
 
   @override
   NotificationState build() {
     _listenToSignalR();
-    ref.onDispose(() => _signalRSub?.cancel());
+    _startFallbackTimer();
+    ref.onDispose(() {
+      _signalRSub?.cancel();
+      _fallbackTimer?.cancel();
+    });
     _fetchInitial();
     return const NotificationState(loading: true);
   }
@@ -56,7 +63,9 @@ class NotificationNotifier extends Notifier<NotificationState> {
   void _listenToSignalR() {
     _signalRSub?.cancel();
     _signalRSub = SignalRService.instance.onNotification.listen((data) {
-      debugPrint('[Notifications] Real-time notification received: ${data['type']}');
+      debugPrint(
+        '[Notifications] Real-time notification received: ${data['type']}',
+      );
       try {
         final notification = NotificationModel.fromJson(data);
         // Prepend to list and increment unread count
@@ -65,10 +74,19 @@ class NotificationNotifier extends Notifier<NotificationState> {
           unreadCount: state.unreadCount + 1,
         );
       } catch (e) {
-        debugPrint('[Notifications] Failed to parse real-time notification: $e');
+        debugPrint(
+          '[Notifications] Failed to parse real-time notification: $e',
+        );
         // Fallback: just bump the unread count, it'll sync on next refresh
         state = state.copyWith(unreadCount: state.unreadCount + 1);
       }
+    });
+  }
+
+  void _startFallbackTimer() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      fetchUnreadCount();
     });
   }
 

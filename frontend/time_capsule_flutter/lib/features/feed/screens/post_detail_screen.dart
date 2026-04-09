@@ -25,7 +25,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
   }
 
   Future<void> _fetchPost() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final res = await dioClient.get('/posts/${widget.postId}');
       if (mounted) {
@@ -42,6 +45,10 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
         });
       }
     }
+  }
+
+  void _navigateToUser(String userId) {
+    Navigator.pushNamed(context, '/user-profile', arguments: userId);
   }
 
   @override
@@ -68,45 +75,40 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
               ),
             )
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.error_outline_rounded,
-                          size: 64, color: scheme.error.withAlpha(150)),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(
-                        onPressed: _fetchPost,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Retry'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 64,
+                    color: scheme.error.withAlpha(150),
                   ),
-                )
-              : RefreshIndicator(
-                  color: scheme.primary,
-                  onRefresh: _fetchPost,
-                  child: ListView(
-                    padding: const EdgeInsets.only(top: 8, bottom: 100),
-                    children: [
-                      PostCard(
-                        post: _post!,
-                        onTapUser: () => Navigator.pushNamed(
-                          context,
-                          '/user-profile',
-                          arguments: _post!.userId,
-                        ),
-                        onNavigateUser: (userId) => Navigator.pushNamed(
-                          context,
-                          '/user-profile',
-                          arguments: userId,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 16),
+                  Text(_error!, style: Theme.of(context).textTheme.bodyLarge),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _fetchPost,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Retry'),
                   ),
-                ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              color: scheme.primary,
+              onRefresh: _fetchPost,
+              child: ListView(
+                padding: const EdgeInsets.only(top: 8, bottom: 100),
+                children: [
+                  PostCard(
+                    post: _post!,
+                    onTapUser: () => _navigateToUser(_post!.userId),
+                    onNavigateUser: _navigateToUser,
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
