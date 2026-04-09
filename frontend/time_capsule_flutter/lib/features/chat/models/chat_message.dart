@@ -16,13 +16,13 @@ class ChatReaction {
   });
 
   factory ChatReaction.fromJson(Map<String, dynamic> j) => ChatReaction(
-        id: j['id'] as String? ?? '',
-        chatId: j['chatId'] as String? ?? '',
-        userId: j['userId'] as String? ?? '',
-        displayName: j['displayName'] as String? ?? '',
-        reactionType: j['reactionType'] as String? ?? 'like',
-        createdAt: j['createdAt'] as String? ?? '',
-      );
+    id: j['id'] as String? ?? '',
+    chatId: j['chatId'] as String? ?? '',
+    userId: j['userId'] as String? ?? '',
+    displayName: j['displayName'] as String? ?? '',
+    reactionType: j['reactionType'] as String? ?? 'like',
+    createdAt: j['createdAt'] as String? ?? '',
+  );
 }
 
 class ChatMessage {
@@ -51,38 +51,38 @@ class ChatMessage {
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
-        id: j['id'] as String,
-        senderId: j['senderId'] as String,
-        receiverId: j['receiverId'] as String,
-        message: j['message'] as String? ?? '',
-        mediaUrl: j['mediaUrl'] as String?,
-        messageType: j['messageType'] as String? ?? 'Text',
-        status: j['status'] as String? ?? 'Sent',
-        isRead: j['isRead'] as bool? ?? false,
-        createdAt: j['createdAt'] as String,
-        reactions: (j['reactions'] as List<dynamic>?)
-                ?.map((e) => ChatReaction.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-      );
+    id: j['id'] as String,
+    senderId: j['senderId'] as String,
+    receiverId: j['receiverId'] as String,
+    message: j['message'] as String? ?? '',
+    mediaUrl: j['mediaUrl'] as String?,
+    messageType: j['messageType'] as String? ?? 'Text',
+    status: j['status'] as String? ?? 'Sent',
+    isRead: j['isRead'] as bool? ?? false,
+    createdAt: j['createdAt'] as String,
+    reactions:
+        (j['reactions'] as List<dynamic>?)
+            ?.map((e) => ChatReaction.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        [],
+  );
 
   ChatMessage copyWith({
     String? status,
     bool? isRead,
     List<ChatReaction>? reactions,
-  }) =>
-      ChatMessage(
-        id: id,
-        senderId: senderId,
-        receiverId: receiverId,
-        message: message,
-        mediaUrl: mediaUrl,
-        messageType: messageType,
-        status: status ?? this.status,
-        isRead: isRead ?? this.isRead,
-        createdAt: createdAt,
-        reactions: reactions ?? this.reactions,
-      );
+  }) => ChatMessage(
+    id: id,
+    senderId: senderId,
+    receiverId: receiverId,
+    message: message,
+    mediaUrl: mediaUrl,
+    messageType: messageType,
+    status: status ?? this.status,
+    isRead: isRead ?? this.isRead,
+    createdAt: createdAt,
+    reactions: reactions ?? this.reactions,
+  );
 }
 
 class ContactModel {
@@ -103,11 +103,11 @@ class ContactModel {
   });
 
   factory ContactModel.fromJson(Map<String, dynamic> j) => ContactModel(
-        userId: j['userId'] as String,
-        displayName: j['displayName'] as String,
-        profilePictureUrl: j['profilePictureUrl'] as String?,
-        lastMessage: j['lastMessage'] as String?,
-        lastMessageAt: j['lastMessageAt'] as String?,
-        unreadCount: j['unreadCount'] as int? ?? 0,
-      );
+    userId: j['userId'] as String,
+    displayName: j['displayName'] as String,
+    profilePictureUrl: j['profilePictureUrl'] as String?,
+    lastMessage: j['lastMessage'] as String?,
+    lastMessageAt: j['lastMessageAt'] as String?,
+    unreadCount: j['unreadCount'] as int? ?? 0,
+  );
 }

@@ -17,7 +17,8 @@ class SignalRService {
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
   final _typingController = StreamController<(String, bool)>.broadcast();
   final _readController = StreamController<(String, List<String>)>.broadcast();
-  final _reactionController = StreamController<Map<String, dynamic>>.broadcast();
+  final _reactionController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onMessage => _messageController.stream;
   Stream<(String, bool)> get onTyping => _typingController.stream;
@@ -25,8 +26,7 @@ class SignalRService {
   Stream<Map<String, dynamic>> get onReaction => _reactionController.stream;
 
   bool get isConnected =>
-      _hub != null &&
-      _hub!.state == HubConnectionState.Connected;
+      _hub != null && _hub!.state == HubConnectionState.Connected;
 
   Future<void> connect() async {
     if (_isConnecting || isConnected) return;
@@ -48,9 +48,7 @@ class SignalRService {
               transport: HttpTransportType.WebSockets,
             ),
           )
-          .withAutomaticReconnect(
-            retryDelays: [2000, 5000, 10000, 30000],
-          )
+          .withAutomaticReconnect(retryDelays: [2000, 5000, 10000, 30000])
           .build();
 
       _hub!.on('ReceiveMessage', (args) {
@@ -104,7 +102,10 @@ class SignalRService {
     }
   }
 
-  Future<void> sendMessage(Map<String, dynamic> message, String receiverId) async {
+  Future<void> sendMessage(
+    Map<String, dynamic> message,
+    String receiverId,
+  ) async {
     if (!isConnected) return;
     try {
       await _hub!.invoke('SendMessage', args: [message, receiverId]);
@@ -122,7 +123,10 @@ class SignalRService {
     }
   }
 
-  Future<void> sendMessageRead(String otherUserId, List<String> messageIds) async {
+  Future<void> sendMessageRead(
+    String otherUserId,
+    List<String> messageIds,
+  ) async {
     if (!isConnected) return;
     try {
       await _hub!.invoke('MessageRead', args: [otherUserId, messageIds]);
@@ -131,7 +135,10 @@ class SignalRService {
     }
   }
 
-  Future<void> sendReactionUpdated(String otherUserId, Map<String, dynamic> data) async {
+  Future<void> sendReactionUpdated(
+    String otherUserId,
+    Map<String, dynamic> data,
+  ) async {
     if (!isConnected) return;
     try {
       await _hub!.invoke('ReactionUpdated', args: [otherUserId, data]);

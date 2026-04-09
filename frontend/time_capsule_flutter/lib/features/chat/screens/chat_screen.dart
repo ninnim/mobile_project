@@ -254,9 +254,8 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
       state = state.copyWith(messages: updated);
 
       // Notify other user via SignalR
-      final otherUser = state.messages
-          .firstWhere((m) => m.id == messageId)
-          .senderId == myId
+      final otherUser =
+          state.messages.firstWhere((m) => m.id == messageId).senderId == myId
           ? otherId
           : otherId;
       SignalRService.instance.sendReactionUpdated(otherUser, {
@@ -304,14 +303,18 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     'status': m.status,
     'isRead': m.isRead,
     'createdAt': m.createdAt,
-    'reactions': m.reactions.map((r) => {
-      'id': r.id,
-      'chatId': r.chatId,
-      'userId': r.userId,
-      'displayName': r.displayName,
-      'reactionType': r.reactionType,
-      'createdAt': r.createdAt,
-    }).toList(),
+    'reactions': m.reactions
+        .map(
+          (r) => {
+            'id': r.id,
+            'chatId': r.chatId,
+            'userId': r.userId,
+            'displayName': r.displayName,
+            'reactionType': r.reactionType,
+            'createdAt': r.createdAt,
+          },
+        )
+        .toList(),
   };
 
   @override
@@ -433,8 +436,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _recorderOpen = true;
       }
       final dir = await getTemporaryDirectory();
-      _recordingPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
-      await _recorder.startRecorder(toFile: _recordingPath, codec: Codec.aacADTS);
+      _recordingPath =
+          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+      await _recorder.startRecorder(
+        toFile: _recordingPath,
+        codec: Codec.aacADTS,
+      );
       _recordSeconds = 0;
       _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() => _recordSeconds++);
@@ -994,14 +1001,12 @@ class _MessageBubble extends StatelessWidget {
     final hasReactions = msg.reactions.isNotEmpty;
     final reactionGroups = <String, int>{};
     for (final r in msg.reactions) {
-      reactionGroups[r.reactionType] = (reactionGroups[r.reactionType] ?? 0) + 1;
+      reactionGroups[r.reactionType] =
+          (reactionGroups[r.reactionType] ?? 0) + 1;
     }
 
     return Padding(
-      padding: EdgeInsets.only(
-        top: 2,
-        bottom: hasReactions ? 10 : 2,
-      ),
+      padding: EdgeInsets.only(top: 2, bottom: hasReactions ? 10 : 2),
       child: Row(
         mainAxisAlignment: isMine
             ? MainAxisAlignment.end
@@ -1020,7 +1025,10 @@ class _MessageBubble extends StatelessWidget {
                     maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: bgColor,
                       borderRadius: BorderRadius.only(
@@ -1071,7 +1079,10 @@ class _MessageBubble extends StatelessWidget {
                     right: isMine ? 8 : null,
                     left: isMine ? null : 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF2A2D4D) : Colors.white,
                         borderRadius: BorderRadius.circular(12),
@@ -1173,9 +1184,7 @@ class _ReactionPickerDialog extends StatelessWidget {
                   ? const Color(0xFF1A1D3D).withAlpha(240)
                   : Colors.white.withAlpha(240),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: scheme.primary.withAlpha(60),
-              ),
+              border: Border.all(color: scheme.primary.withAlpha(60)),
               boxShadow: [
                 BoxShadow(
                   color: scheme.primary.withAlpha(30),
@@ -1192,22 +1201,21 @@ class _ReactionPickerDialog extends StatelessWidget {
                 final isSelected = selectedEmoji == emoji;
                 return GestureDetector(
                   onTap: () => onSelect(emoji),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.all(6),
-                    decoration: isSelected
-                        ? BoxDecoration(
-                            color: scheme.primary.withAlpha(40),
-                            shape: BoxShape.circle,
-                          )
-                        : null,
-                    child: Text(
-                      emoji,
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  )
-                      .animate()
-                      .scale(
+                  child:
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.all(6),
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                color: scheme.primary.withAlpha(40),
+                                shape: BoxShape.circle,
+                              )
+                            : null,
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 28),
+                        ),
+                      ).animate().scale(
                         begin: const Offset(0, 0),
                         end: const Offset(1, 1),
                         duration: Duration(milliseconds: 200 + idx * 50),
