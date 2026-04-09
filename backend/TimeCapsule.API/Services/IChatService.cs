@@ -9,4 +9,6 @@ public interface IChatService
     Task<List<ContactDto>> GetContactsAsync(Guid userId);
     Task MarkAsReadAsync(Guid userId, Guid otherUserId);
     Task MarkAsDeliveredAsync(Guid userId, Guid otherUserId);
+    Task<ChatReactionDto> ReactToMessageAsync(Guid userId, Guid messageId, string reactionType);
+    Task RemoveReactionAsync(Guid userId, Guid messageId);
 }

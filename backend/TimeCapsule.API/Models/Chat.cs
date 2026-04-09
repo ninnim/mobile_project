@@ -25,4 +25,6 @@ public class Chat
     public User Sender { get; set; } = null!;
     [ForeignKey("ReceiverId")]
     public User Receiver { get; set; } = null!;
+
+    public ICollection<ChatReaction> Reactions { get; set; } = new List<ChatReaction>();
 }

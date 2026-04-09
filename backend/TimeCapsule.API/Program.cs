@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using TimeCapsule.API.Data;
+using TimeCapsule.API.Hubs;
 using TimeCapsule.API.Middleware;
 using TimeCapsule.API.Services;
 
@@ -16,6 +17,7 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 // Services
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -46,13 +48,32 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
             ValidateIssuer = true, ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidateAudience = true, ValidAudience = builder.Configuration["JwtSettings:Audience"],
-            ValidateLifetime = true
+            ValidateLifetime = true,
+            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+        };
+        // Allow SignalR to read JWT from query string
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chathub"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
-// CORS
+// CORS — AllowCredentials required for SignalR WebSocket
 builder.Services.AddCors(options =>
-    options.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+    options.AddDefaultPolicy(p => p
+        .SetIsOriginAllowed(_ => true)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()));
 
 // HttpClient (needed for social auth token verification)
 builder.Services.AddHttpClient();
@@ -88,6 +109,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/uploads"
 });
 app.MapControllers();
+app.MapHub<ChatHub>("/chathub");
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.Run();

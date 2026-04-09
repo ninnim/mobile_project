@@ -265,18 +265,17 @@ class CommentModel {
     String? myReaction,
     bool clearReaction = false,
     int? totalReactions,
-  }) =>
-      CommentModel(
-        id: id,
-        userId: userId,
-        userName: userName,
-        userProfilePicture: userProfilePicture,
-        content: content,
-        createdAt: createdAt,
-        reactionCounts: reactionCounts ?? this.reactionCounts,
-        myReaction: clearReaction ? null : (myReaction ?? this.myReaction),
-        totalReactions: totalReactions ?? this.totalReactions,
-      );
+  }) => CommentModel(
+    id: id,
+    userId: userId,
+    userName: userName,
+    userProfilePicture: userProfilePicture,
+    content: content,
+    createdAt: createdAt,
+    reactionCounts: reactionCounts ?? this.reactionCounts,
+    myReaction: clearReaction ? null : (myReaction ?? this.myReaction),
+    totalReactions: totalReactions ?? this.totalReactions,
+  );
 }
 
 /// Model for a reactor (user who reacted)

@@ -227,7 +227,11 @@ class FeedNotifier extends Notifier<FeedState> {
   }
 
   /// React to a comment with a specific emoji type.
-  Future<void> reactToComment(String postId, String commentId, String reactionType) async {
+  Future<void> reactToComment(
+    String postId,
+    String commentId,
+    String reactionType,
+  ) async {
     try {
       await dioClient.post(
         '/posts/$postId/comments/$commentId/reactions',
@@ -258,9 +262,14 @@ class FeedNotifier extends Notifier<FeedState> {
   }
 
   /// Get reactors for a comment.
-  Future<ReactionSummaryModel> getCommentReactors(String postId, String commentId) async {
+  Future<ReactionSummaryModel> getCommentReactors(
+    String postId,
+    String commentId,
+  ) async {
     try {
-      final res = await dioClient.get('/posts/$postId/comments/$commentId/reactions');
+      final res = await dioClient.get(
+        '/posts/$postId/comments/$commentId/reactions',
+      );
       return ReactionSummaryModel.fromJson(res.data as Map<String, dynamic>);
     } catch (_) {
       return const ReactionSummaryModel();

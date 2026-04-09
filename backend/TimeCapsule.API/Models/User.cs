@@ -32,6 +32,9 @@ public class User
     [MaxLength(500)]
     public string? FcmToken { get; set; }
 
+    public bool IsOnline { get; set; } = false;
+    public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+
     public ICollection<Capsule> Capsules { get; set; } = new List<Capsule>();
     public ICollection<GameRoom> GameRooms { get; set; } = new List<GameRoom>();
     public ICollection<Chat> SentChats { get; set; } = new List<Chat>();

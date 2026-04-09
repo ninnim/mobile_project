@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/supabase_constants.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/signalr_service.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -85,6 +86,7 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
 
     if (!authState.isAuthenticated) {
       _servicesInitialized = false; // reset so it re-runs on next login
+      SignalRService.instance.disconnect();
       return _showLogin
           ? LoginScreen(onGoRegister: () => setState(() => _showLogin = false))
           : RegisterScreen(onGoLogin: () => setState(() => _showLogin = true));
@@ -99,6 +101,9 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
       });
       FcmService.init().catchError((e) {
         debugPrint('[FCM] init failed: $e');
+      });
+      SignalRService.instance.connect().catchError((e) {
+        debugPrint('[SignalR] init failed: $e');
       });
     }
 
@@ -195,6 +200,7 @@ class MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<MainShell> {
   int _currentIndex = 0;
+  final List<int> _tabHistory = [];
 
   static const _navItems = [
     NavItem(
@@ -220,7 +226,11 @@ class _MainShellState extends ConsumerState<MainShell> {
   ];
 
   void _onTabTap(int i) {
-    setState(() => _currentIndex = i);
+    if (i == _currentIndex) return; // already on this tab, do nothing
+    setState(() {
+      _tabHistory.add(_currentIndex);
+      _currentIndex = i;
+    });
     if (i == 0) {
       ref.read(feedProvider.notifier).fetchFeed(refresh: true);
     }
@@ -275,38 +285,52 @@ class _MainShellState extends ConsumerState<MainShell> {
         0;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          FeedScreen(
-            onTapUser: (uid) {
-              final myId = ref.read(authProvider).user?.id;
-              if (uid == myId) {
-                setState(() => _currentIndex = 3);
-              } else {
-                Navigator.pushNamed(context, '/user-profile', arguments: uid);
-              }
-            },
-            onCreatePost: () => Navigator.pushNamed(context, '/create-post'),
-          ),
-          ChatListScreen(
-            onOpenChat: (userId, name) => Navigator.pushNamed(
-              context,
-              '/chat',
-              arguments: {'userId': userId, 'name': name},
+      body: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (_tabHistory.isNotEmpty) {
+            setState(() => _currentIndex = _tabHistory.removeLast());
+          } else {
+            SystemNavigator.pop();
+          }
+        },
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            FeedScreen(
+              onTapUser: (uid) {
+                final myId = ref.read(authProvider).user?.id;
+                if (uid == myId) {
+                  setState(() {
+                    _tabHistory.add(_currentIndex);
+                    _currentIndex = 3;
+                  });
+                } else {
+                  Navigator.pushNamed(context, '/user-profile', arguments: uid);
+                }
+              },
+              onCreatePost: () => Navigator.pushNamed(context, '/create-post'),
             ),
-          ),
-          CapsuleListScreen(
-            onCreateCapsule: () async {
-              final result = await Navigator.pushNamed(
+            ChatListScreen(
+              onOpenChat: (userId, name) => Navigator.pushNamed(
                 context,
-                '/create-capsule',
-              );
-              if (result == true) setState(() {});
-            },
-          ),
-          const ProfileScreen(),
-        ],
+                '/chat',
+                arguments: {'userId': userId, 'name': name},
+              ),
+            ),
+            CapsuleListScreen(
+              onCreateCapsule: () async {
+                final result = await Navigator.pushNamed(
+                  context,
+                  '/create-capsule',
+                );
+                if (result == true) setState(() {});
+              },
+            ),
+            const ProfileScreen(),
+          ],
+        ),
       ),
       bottomNavigationBar: LiquidGlassNavBar(
         currentIndex: _currentIndex,

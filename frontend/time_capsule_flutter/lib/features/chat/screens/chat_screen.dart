@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart' as dio_lib;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart';
@@ -11,14 +12,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/chat_message.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/constants/api_constants.dart';
-import '../../../core/constants/supabase_constants.dart';
+import '../../../core/services/signalr_service.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/widgets/avatar_widget.dart';
-import '../../../core/notifications/notification_service.dart';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -66,8 +65,11 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
   final String myId;
   final String otherId;
   final String otherName;
-  RealtimeChannel? _channel;
   Timer? _typingTimer;
+  StreamSubscription? _msgSub;
+  StreamSubscription? _typingSub;
+  StreamSubscription? _readSub;
+  StreamSubscription? _reactionSub;
   static const _pageSize = 30;
 
   _ChatNotifier(this.myId, this.otherId, this.otherName)
@@ -77,7 +79,7 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
 
   Future<void> _init() async {
     await _fetchMessages();
-    _subscribeRealtime();
+    _subscribeSignalR();
   }
 
   Future<void> _fetchMessages() async {
@@ -122,60 +124,61 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     }
   }
 
-  void _subscribeRealtime() {
-    final channelName = SupabaseConstants.chatChannel(myId, otherId);
-    final supabase = Supabase.instance.client;
-    _channel = supabase.channel(channelName);
+  void _subscribeSignalR() {
+    final signalR = SignalRService.instance;
+    // Ensure connected
+    signalR.connect();
 
-    _channel!.onBroadcast(
-      event: 'new_message',
-      callback: (payload) {
-        final raw = payload['message'] as Map<String, dynamic>?;
-        if (raw == null) return;
-        final msg = ChatMessage.fromJson(raw);
-        if (msg.senderId == otherId) {
-          if (!state.messages.any((m) => m.id == msg.id)) {
-            state = state.copyWith(messages: [...state.messages, msg]);
-            NotificationService.showMessage(
-              senderName: otherName,
-              message: msg.messageType == 'Image'
-                  ? '📷 Image'
-                  : msg.messageType == 'Voice'
-                  ? '🎤 Voice message'
-                  : msg.message,
-              senderId: otherId,
-            );
-          }
+    _msgSub = signalR.onMessage.listen((data) {
+      final msg = ChatMessage.fromJson(data);
+      // Only accept messages from the other user in this conversation
+      if (msg.senderId == otherId) {
+        if (!state.messages.any((m) => m.id == msg.id)) {
+          state = state.copyWith(messages: [...state.messages, msg]);
           dioClient.put('/chats/read/$otherId');
         }
-      },
-    );
-
-    _channel!.onBroadcast(
-      event: 'typing',
-      callback: (payload) {
-        final userId = payload['userId'] as String?;
-        final isTyping = payload['isTyping'] as bool? ?? false;
-        if (userId == otherId) state = state.copyWith(otherTyping: isTyping);
-      },
-    );
-
-    _channel!.onPresenceSync((_) => _updateOnline());
-    _channel!.onPresenceJoin((_) => _updateOnline());
-    _channel!.onPresenceLeave((_) => _updateOnline());
-
-    _channel!.subscribe((status, error) async {
-      if (status == RealtimeSubscribeStatus.subscribed) {
-        await _channel!.track({'userId': myId, 'online': true});
       }
     });
-  }
 
-  void _updateOnline() {
-    final online = _channel!.presenceState().any(
-      (s) => s.presences.any((p) => p.payload['userId'] == otherId),
-    );
-    state = state.copyWith(otherOnline: online);
+    _typingSub = signalR.onTyping.listen((record) {
+      final (userId, isTyping) = record;
+      if (userId == otherId) {
+        state = state.copyWith(otherTyping: isTyping);
+      }
+    });
+
+    _readSub = signalR.onMessagesRead.listen((record) {
+      final (userId, messageIds) = record;
+      if (userId == otherId) {
+        final updated = state.messages.map((m) {
+          if (messageIds.contains(m.id)) {
+            return m.copyWith(status: 'Read', isRead: true);
+          }
+          return m;
+        }).toList();
+        state = state.copyWith(messages: updated);
+      }
+    });
+
+    _reactionSub = signalR.onReaction.listen((data) {
+      final chatId = data['chatId'] as String?;
+      if (chatId == null) return;
+      final reaction = ChatReaction.fromJson(data);
+      final updated = state.messages.map((m) {
+        if (m.id == chatId) {
+          final reactions = List<ChatReaction>.from(m.reactions);
+          final idx = reactions.indexWhere((r) => r.userId == reaction.userId);
+          if (idx >= 0) {
+            reactions[idx] = reaction;
+          } else {
+            reactions.add(reaction);
+          }
+          return m.copyWith(reactions: reactions);
+        }
+        return m;
+      }).toList();
+      state = state.copyWith(messages: updated);
+    });
   }
 
   Future<ChatMessage?> sendMessage(String text) async {
@@ -194,10 +197,8 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
         messages: [...state.messages, msg],
         sending: false,
       );
-      await _channel?.sendBroadcastMessage(
-        event: 'new_message',
-        payload: {'message': _toMap(msg)},
-      );
+      // Relay via SignalR
+      SignalRService.instance.sendMessage(_toMap(msg), otherId);
       return msg;
     } catch (_) {
       state = state.copyWith(sending: false);
@@ -224,27 +225,71 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
         messages: [...state.messages, msg],
         sending: false,
       );
-      await _channel?.sendBroadcastMessage(
-        event: 'new_message',
-        payload: {'message': _toMap(msg)},
-      );
+      SignalRService.instance.sendMessage(_toMap(msg), otherId);
     } catch (_) {
       state = state.copyWith(sending: false);
     }
   }
 
+  Future<void> reactToMessage(String messageId, String reactionType) async {
+    try {
+      final res = await dioClient.post(
+        '/chats/$messageId/react',
+        data: {'reactionType': reactionType},
+      );
+      final reaction = ChatReaction.fromJson(res.data as Map<String, dynamic>);
+      final updated = state.messages.map((m) {
+        if (m.id == messageId) {
+          final reactions = List<ChatReaction>.from(m.reactions);
+          final idx = reactions.indexWhere((r) => r.userId == myId);
+          if (idx >= 0) {
+            reactions[idx] = reaction;
+          } else {
+            reactions.add(reaction);
+          }
+          return m.copyWith(reactions: reactions);
+        }
+        return m;
+      }).toList();
+      state = state.copyWith(messages: updated);
+
+      // Notify other user via SignalR
+      final otherUser = state.messages
+          .firstWhere((m) => m.id == messageId)
+          .senderId == myId
+          ? otherId
+          : otherId;
+      SignalRService.instance.sendReactionUpdated(otherUser, {
+        'id': reaction.id,
+        'chatId': messageId,
+        'userId': reaction.userId,
+        'displayName': reaction.displayName,
+        'reactionType': reactionType,
+        'createdAt': reaction.createdAt,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> removeReaction(String messageId) async {
+    try {
+      await dioClient.delete('/chats/$messageId/react');
+      final updated = state.messages.map((m) {
+        if (m.id == messageId) {
+          final reactions = m.reactions.where((r) => r.userId != myId).toList();
+          return m.copyWith(reactions: reactions);
+        }
+        return m;
+      }).toList();
+      state = state.copyWith(messages: updated);
+    } catch (_) {}
+  }
+
   void broadcastTyping(bool isTyping) {
     _typingTimer?.cancel();
-    _channel?.sendBroadcastMessage(
-      event: 'typing',
-      payload: {'userId': myId, 'isTyping': isTyping},
-    );
+    SignalRService.instance.sendTyping(otherId, isTyping);
     if (isTyping) {
       _typingTimer = Timer(const Duration(seconds: 3), () {
-        _channel?.sendBroadcastMessage(
-          event: 'typing',
-          payload: {'userId': myId, 'isTyping': false},
-        );
+        SignalRService.instance.sendTyping(otherId, false);
       });
     }
   }
@@ -259,12 +304,23 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     'status': m.status,
     'isRead': m.isRead,
     'createdAt': m.createdAt,
+    'reactions': m.reactions.map((r) => {
+      'id': r.id,
+      'chatId': r.chatId,
+      'userId': r.userId,
+      'displayName': r.displayName,
+      'reactionType': r.reactionType,
+      'createdAt': r.createdAt,
+    }).toList(),
   };
 
   @override
   void dispose() {
     _typingTimer?.cancel();
-    _channel?.unsubscribe();
+    _msgSub?.cancel();
+    _typingSub?.cancel();
+    _readSub?.cancel();
+    _reactionSub?.cancel();
     super.dispose();
   }
 }
@@ -435,8 +491,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     ref.listen(_chatProvider(_key), (prev, next) {
-      if ((prev?.messages.length ?? 0) < next.messages.length)
+      if ((prev?.messages.length ?? 0) < next.messages.length) {
         _scrollToBottom();
+      }
     });
 
     return Scaffold(
@@ -565,6 +622,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             isMine: isMine,
                             playingId: _playingId,
                             onPlayVoice: _playVoice,
+                            myId: _myId,
+                            onReact: (emoji) => ref
+                                .read(_chatProvider(_key).notifier)
+                                .reactToMessage(msg.id, emoji),
+                            onRemoveReaction: () => ref
+                                .read(_chatProvider(_key).notifier)
+                                .removeReaction(msg.id),
                           ).animate().fadeIn(duration: 150.ms),
                         ],
                       );
@@ -812,13 +876,51 @@ class _MessageBubble extends StatelessWidget {
   final bool isMine;
   final String? playingId;
   final Future<void> Function(String, String) onPlayVoice;
+  final String myId;
+  final void Function(String emoji) onReact;
+  final VoidCallback onRemoveReaction;
 
   const _MessageBubble({
     required this.msg,
     required this.isMine,
     this.playingId,
     required this.onPlayVoice,
+    required this.myId,
+    required this.onReact,
+    required this.onRemoveReaction,
   });
+
+  static const _reactionEmojis = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+
+  void _showReactionPicker(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final myReaction = msg.reactions
+        .where((r) => r.userId == myId)
+        .firstOrNull
+        ?.reactionType;
+
+    HapticFeedback.mediumImpact();
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => _ReactionPickerDialog(
+        emojis: _reactionEmojis,
+        selectedEmoji: myReaction,
+        scheme: scheme,
+        isDark: isDark,
+        onSelect: (emoji) {
+          Navigator.of(ctx).pop();
+          if (emoji == myReaction) {
+            onRemoveReaction();
+          } else {
+            onReact(emoji);
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -888,8 +990,18 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
+    // Build reaction chips
+    final hasReactions = msg.reactions.isNotEmpty;
+    final reactionGroups = <String, int>{};
+    for (final r in msg.reactions) {
+      reactionGroups[r.reactionType] = (reactionGroups[r.reactionType] ?? 0) + 1;
+    }
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: EdgeInsets.only(
+        top: 2,
+        bottom: hasReactions ? 10 : 2,
+      ),
       child: Row(
         mainAxisAlignment: isMine
             ? MainAxisAlignment.end
@@ -897,53 +1009,99 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMine) const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.72,
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(18),
-                  topRight: const Radius.circular(18),
-                  bottomLeft: Radius.circular(isMine ? 18 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 18),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(15),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+          GestureDetector(
+            onLongPress: () => _showReactionPicker(context),
+            onDoubleTap: () => onReact('❤️'),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: isMine
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  content,
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(msg.createdAt),
-                        style: TextStyle(
-                          color: textColor.withAlpha(130),
-                          fontSize: 10,
-                        ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isMine ? 18 : 4),
+                        bottomRight: Radius.circular(isMine ? 4 : 18),
                       ),
-                      if (isMine) ...[
-                        const SizedBox(width: 4),
-                        _StatusTick(status: msg.status, color: textColor),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
-                    ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMine
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        content,
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _formatTime(msg.createdAt),
+                              style: TextStyle(
+                                color: textColor.withAlpha(130),
+                                fontSize: 10,
+                              ),
+                            ),
+                            if (isMine) ...[
+                              const SizedBox(width: 4),
+                              _StatusTick(status: msg.status, color: textColor),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+                // Reaction badges at the bottom
+                if (hasReactions)
+                  Positioned(
+                    bottom: -8,
+                    right: isMine ? 8 : null,
+                    left: isMine ? null : 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2A2D4D) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withAlpha(20)
+                              : Colors.black.withAlpha(10),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(15),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: reactionGroups.entries.map((e) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 1),
+                            child: Text(
+                              e.value > 1 ? '${e.key}${e.value}' : e.key,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           if (isMine) const SizedBox(width: 4),
@@ -980,6 +1138,87 @@ class _StatusTick extends StatelessWidget {
             child: Icon(Icons.check, size: 11, color: tickColor),
           ),
       ],
+    );
+  }
+}
+
+// ─── Reaction Picker Dialog ──────────────────────────────────────────────────
+
+class _ReactionPickerDialog extends StatelessWidget {
+  final List<String> emojis;
+  final String? selectedEmoji;
+  final ColorScheme scheme;
+  final bool isDark;
+  final void Function(String emoji) onSelect;
+
+  const _ReactionPickerDialog({
+    required this.emojis,
+    this.selectedEmoji,
+    required this.scheme,
+    required this.isDark,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).pop(),
+      child: Material(
+        color: Colors.black.withAlpha(80),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? const Color(0xFF1A1D3D).withAlpha(240)
+                  : Colors.white.withAlpha(240),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: scheme.primary.withAlpha(60),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.primary.withAlpha(30),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: emojis.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final emoji = entry.value;
+                final isSelected = selectedEmoji == emoji;
+                return GestureDetector(
+                  onTap: () => onSelect(emoji),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(6),
+                    decoration: isSelected
+                        ? BoxDecoration(
+                            color: scheme.primary.withAlpha(40),
+                            shape: BoxShape.circle,
+                          )
+                        : null,
+                    child: Text(
+                      emoji,
+                      style: const TextStyle(fontSize: 28),
+                    ),
+                  )
+                      .animate()
+                      .scale(
+                        begin: const Offset(0, 0),
+                        end: const Offset(1, 1),
+                        duration: Duration(milliseconds: 200 + idx * 50),
+                        curve: Curves.elasticOut,
+                      ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

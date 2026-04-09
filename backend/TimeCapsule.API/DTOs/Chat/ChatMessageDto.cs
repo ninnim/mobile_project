@@ -11,4 +11,5 @@ public class ChatMessageDto
     public string? MediaUrl { get; set; }
     public string Status { get; set; } = "Sent";
     public DateTime CreatedAt { get; set; }
+    public List<ChatReactionDto> Reactions { get; set; } = new();
 }

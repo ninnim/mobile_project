@@ -36,7 +36,9 @@ public class ChatService : IChatService
         // Fire-and-forget push notification; don't block the API response.
         var sender = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == senderId);
         var senderName = sender?.DisplayName ?? "Someone";
-        var preview = dto.MessageType == "Image" ? "📷 Image" : dto.Message;
+        var preview = dto.MessageType == "Image" ? "📷 Image"
+                    : dto.MessageType == "Voice" ? "🎤 Voice message"
+                    : dto.Message;
         _ = _fcm.SendChatNotificationAsync(dto.ReceiverId, senderName, preview);
 
         return MapToDto(chat);
@@ -45,18 +47,20 @@ public class ChatService : IChatService
     public async Task<List<ChatMessageDto>> GetConversationAsync(Guid userId, Guid otherUserId, DateTime? before = null, int limit = 30)
     {
         var query = _db.Chats
+            .Include(c => c.Reactions).ThenInclude(r => r.User)
             .Where(c => (c.SenderId == userId && c.ReceiverId == otherUserId) ||
                         (c.SenderId == otherUserId && c.ReceiverId == userId));
 
         if (before.HasValue)
             query = query.Where(c => c.CreatedAt < before.Value);
 
-        return await query
+        var messages = await query
             .OrderByDescending(c => c.CreatedAt)
             .Take(limit)
-            .OrderBy(c => c.CreatedAt) // re-order ascending for display
-            .Select(c => MapToDto(c))
+            .OrderBy(c => c.CreatedAt)
             .ToListAsync();
+
+        return messages.Select(MapToDto).ToList();
     }
 
     public async Task<List<ContactDto>> GetContactsAsync(Guid userId)
@@ -80,7 +84,9 @@ public class ChatService : IChatService
                     UserId = otherId,
                     DisplayName = otherUser?.DisplayName ?? "",
                     ProfilePictureUrl = otherUser?.ProfilePictureUrl,
-                    LastMessage = chat.Message,
+                    LastMessage = chat.MessageType == "Voice" ? "🎤 Voice message"
+                               : chat.MessageType == "Image" ? "📷 Image"
+                               : chat.Message,
                     LastMessageAt = chat.CreatedAt,
                     UnreadCount = 0
                 };
@@ -106,11 +112,74 @@ public class ChatService : IChatService
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, "Delivered"));
     }
 
+    public async Task<ChatReactionDto> ReactToMessageAsync(Guid userId, Guid messageId, string reactionType)
+    {
+        var chat = await _db.Chats.FindAsync(messageId)
+            ?? throw new KeyNotFoundException("Message not found.");
+
+        // Ensure user is part of this conversation
+        if (chat.SenderId != userId && chat.ReceiverId != userId)
+            throw new UnauthorizedAccessException("Cannot react to this message.");
+
+        var existing = await _db.ChatReactions
+            .FirstOrDefaultAsync(r => r.ChatId == messageId && r.UserId == userId);
+
+        if (existing != null)
+        {
+            existing.ReactionType = reactionType;
+            existing.CreatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            existing = new ChatReaction
+            {
+                Id = Guid.NewGuid(),
+                ChatId = messageId,
+                UserId = userId,
+                ReactionType = reactionType,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.ChatReactions.Add(existing);
+        }
+        await _db.SaveChangesAsync();
+
+        var user = await _db.Users.FindAsync(userId);
+        return new ChatReactionDto
+        {
+            Id = existing.Id,
+            ChatId = messageId,
+            UserId = userId,
+            DisplayName = user?.DisplayName ?? "",
+            ReactionType = reactionType,
+            CreatedAt = existing.CreatedAt
+        };
+    }
+
+    public async Task RemoveReactionAsync(Guid userId, Guid messageId)
+    {
+        var reaction = await _db.ChatReactions
+            .FirstOrDefaultAsync(r => r.ChatId == messageId && r.UserId == userId);
+        if (reaction != null)
+        {
+            _db.ChatReactions.Remove(reaction);
+            await _db.SaveChangesAsync();
+        }
+    }
+
     private static ChatMessageDto MapToDto(Chat c) => new()
     {
         Id = c.Id, SenderId = c.SenderId, ReceiverId = c.ReceiverId,
         Message = c.Message, IsRead = c.IsRead,
         MessageType = c.MessageType, MediaUrl = c.MediaUrl, Status = c.Status,
-        CreatedAt = c.CreatedAt
+        CreatedAt = c.CreatedAt,
+        Reactions = c.Reactions?.Select(r => new ChatReactionDto
+        {
+            Id = r.Id,
+            ChatId = r.ChatId,
+            UserId = r.UserId,
+            DisplayName = r.User?.DisplayName ?? "",
+            ReactionType = r.ReactionType,
+            CreatedAt = r.CreatedAt
+        }).ToList() ?? new()
     };
 }

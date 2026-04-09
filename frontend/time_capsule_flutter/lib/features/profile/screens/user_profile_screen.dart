@@ -104,9 +104,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
     // Optimistic update
     final newCounts = Map<String, int>.from(_profileReactionCounts);
-    if (_myProfileReaction != null && newCounts.containsKey(_myProfileReaction!)) {
+    if (_myProfileReaction != null &&
+        newCounts.containsKey(_myProfileReaction!)) {
       newCounts[_myProfileReaction!] = (newCounts[_myProfileReaction!]! - 1);
-      if (newCounts[_myProfileReaction!]! <= 0) newCounts.remove(_myProfileReaction!);
+      if (newCounts[_myProfileReaction!]! <= 0)
+        newCounts.remove(_myProfileReaction!);
     }
     newCounts[reactionType] = (newCounts[reactionType] ?? 0) + 1;
 
@@ -143,7 +145,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final newCounts = Map<String, int>.from(_profileReactionCounts);
     if (newCounts.containsKey(_myProfileReaction!)) {
       newCounts[_myProfileReaction!] = (newCounts[_myProfileReaction!]! - 1);
-      if (newCounts[_myProfileReaction!]! <= 0) newCounts.remove(_myProfileReaction!);
+      if (newCounts[_myProfileReaction!]! <= 0)
+        newCounts.remove(_myProfileReaction!);
     }
 
     setState(() {
@@ -681,14 +684,18 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       child: GestureDetector(
         onLongPress: () {
           HapticFeedback.mediumImpact();
-          setState(() => _showProfileReactionPicker = !_showProfileReactionPicker);
+          setState(
+            () => _showProfileReactionPicker = !_showProfileReactionPicker,
+          );
         },
         child: OutlinedButton(
           onPressed: () {
             if (hasReaction) {
               _removeProfileReaction();
             } else {
-              setState(() => _showProfileReactionPicker = !_showProfileReactionPicker);
+              setState(
+                () => _showProfileReactionPicker = !_showProfileReactionPicker,
+              );
             }
           },
           style: OutlinedButton.styleFrom(
@@ -1122,8 +1129,10 @@ class _ProfileReactionSummary extends StatelessWidget {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: Text(topEmojis[i],
-                          style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        topEmojis[i],
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                   ),
               ],
@@ -1140,28 +1149,37 @@ class _ProfileReactionSummary extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           // Individual counts
-          ...sorted.take(3).map((e) => Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_reactionEmojis[e.key] ?? '👍',
-                        style: const TextStyle(fontSize: 11)),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${e.value}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: scheme.onSurface.withAlpha(120),
-                        fontWeight: FontWeight.w600,
+          ...sorted
+              .take(3)
+              .map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _reactionEmojis[e.key] ?? '👍',
+                        style: const TextStyle(fontSize: 11),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 2),
+                      Text(
+                        '${e.value}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurface.withAlpha(120),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )),
+              ),
           const SizedBox(width: 4),
-          Icon(Icons.chevron_right_rounded,
-              size: 14, color: scheme.onSurface.withAlpha(80)),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 14,
+            color: scheme.onSurface.withAlpha(80),
+          ),
         ],
       ),
     );
@@ -1286,8 +1304,9 @@ class _ProfileReactionPickerState extends State<_ProfileReactionPicker>
                       transform: Matrix4.identity()
                         ..translate(0.0, isHovered ? -18.0 : 0.0)
                         ..scale(
-                            isHovered ? 1.5 : (isCurrent ? 1.2 : 1.0),
-                            isHovered ? 1.5 : (isCurrent ? 1.2 : 1.0)),
+                          isHovered ? 1.5 : (isCurrent ? 1.2 : 1.0),
+                          isHovered ? 1.5 : (isCurrent ? 1.2 : 1.0),
+                        ),
                       transformAlignment: Alignment.center,
                       alignment: Alignment.center,
                       decoration: isHovered
@@ -1308,14 +1327,23 @@ class _ProfileReactionPickerState extends State<_ProfileReactionPicker>
                           if (isHovered)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               margin: const EdgeInsets.only(bottom: 4),
                               decoration: BoxDecoration(
                                 color: scheme.primary,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
-                                ['Like', 'Love', 'Haha', 'Wow', 'Sad', 'Angry'][i],
+                                [
+                                  'Like',
+                                  'Love',
+                                  'Haha',
+                                  'Wow',
+                                  'Sad',
+                                  'Angry',
+                                ][i],
                                 style: const TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
@@ -1405,15 +1433,16 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
               children: [
                 Text(
                   'Profile Reactions',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: scheme.primary.withAlpha(20),
                     borderRadius: BorderRadius.circular(12),
@@ -1444,12 +1473,14 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                     isSelected: _filterType == null,
                     onTap: () => setState(() => _filterType = null),
                   ),
-                  ...types.map((type) => _ProfileFilterChip(
-                        emoji: _reactionEmojis[type] ?? '👍',
-                        count: widget.counts[type] ?? 0,
-                        isSelected: _filterType == type,
-                        onTap: () => setState(() => _filterType = type),
-                      )),
+                  ...types.map(
+                    (type) => _ProfileFilterChip(
+                      emoji: _reactionEmojis[type] ?? '👍',
+                      count: widget.counts[type] ?? 0,
+                      isSelected: _filterType == type,
+                      onTap: () => setState(() => _filterType = type),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1459,8 +1490,7 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                 ? Center(
                     child: Text(
                       'No reactions yet',
-                      style: TextStyle(
-                          color: scheme.onSurface.withAlpha(100)),
+                      style: TextStyle(color: scheme.onSurface.withAlpha(100)),
                     ),
                   )
                 : ListView.builder(
@@ -1468,20 +1498,14 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                     itemCount: _filteredReactors.length,
                     itemBuilder: (_, i) {
                       final r = _filteredReactors[i];
-                      final name =
-                          r['displayName'] as String? ?? 'Unknown';
+                      final name = r['displayName'] as String? ?? 'Unknown';
                       final pic = r['profilePictureUrl'] as String?;
-                      final type =
-                          r['reactionType'] as String? ?? 'like';
+                      final type = r['reactionType'] as String? ?? 'like';
                       final userId = r['userId'] as String? ?? '';
                       return ListTile(
                         leading: Stack(
                           children: [
-                            AvatarWidget(
-                              url: pic,
-                              name: name,
-                              radius: 20,
-                            ),
+                            AvatarWidget(url: pic, name: name, radius: 20),
                             Positioned(
                               right: -2,
                               bottom: -2,
@@ -1492,7 +1516,9 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                                   color: scheme.surface,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                      color: scheme.surface, width: 1),
+                                    color: scheme.surface,
+                                    width: 1,
+                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -1505,8 +1531,7 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                         ),
                         title: Text(
                           name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         trailing: Text(
                           _reactionEmojis[type] ?? '👍',
@@ -1514,8 +1539,11 @@ class _ProfileReactorsSheetState extends State<_ProfileReactorsSheet> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/user-profile',
-                              arguments: userId);
+                          Navigator.pushNamed(
+                            context,
+                            '/user-profile',
+                            arguments: userId,
+                          );
                         },
                       );
                     },

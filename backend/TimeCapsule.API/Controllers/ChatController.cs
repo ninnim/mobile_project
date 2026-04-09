@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using TimeCapsule.API.DTOs.Chat;
+using TimeCapsule.API.Hubs;
 using TimeCapsule.API.Services;
 
 namespace TimeCapsule.API.Controllers;
@@ -12,14 +14,24 @@ namespace TimeCapsule.API.Controllers;
 public class ChatController : ControllerBase
 {
     private readonly IChatService _chats;
-    public ChatController(IChatService chats) { _chats = chats; }
+    private readonly IHubContext<ChatHub> _hub;
+    public ChatController(IChatService chats, IHubContext<ChatHub> hub) { _chats = chats; _hub = hub; }
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpPost]
     public async Task<IActionResult> Send([FromForm] SendMessageDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(new { error = "Invalid input." });
-        try { return StatusCode(201, await _chats.SendAsync(UserId, dto)); }
+        try
+        {
+            var msg = await _chats.SendAsync(UserId, dto);
+            // Relay via SignalR to the receiver
+            if (ChatHub.IsUserOnline(dto.ReceiverId.ToString()))
+            {
+                await _hub.Clients.User(dto.ReceiverId.ToString()).SendAsync("ReceiveMessage", msg);
+            }
+            return StatusCode(201, msg);
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
 
@@ -42,6 +54,25 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> MarkDelivered(Guid userId)
     {
         await _chats.MarkAsDeliveredAsync(UserId, userId);
+        return Ok();
+    }
+
+    [HttpPost("{messageId:guid}/react")]
+    public async Task<IActionResult> ReactToMessage(Guid messageId, [FromBody] ReactToMessageDto dto)
+    {
+        try
+        {
+            var reaction = await _chats.ReactToMessageAsync(UserId, messageId, dto.ReactionType);
+            return Ok(reaction);
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { error = ex.Message }); }
+    }
+
+    [HttpDelete("{messageId:guid}/react")]
+    public async Task<IActionResult> RemoveReaction(Guid messageId)
+    {
+        await _chats.RemoveReactionAsync(UserId, messageId);
         return Ok();
     }
 }

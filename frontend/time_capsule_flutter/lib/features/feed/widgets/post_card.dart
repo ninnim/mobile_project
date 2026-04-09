@@ -39,9 +39,16 @@ const _emojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 class PostCard extends ConsumerStatefulWidget {
   final PostModel post;
   final VoidCallback? onTapUser;
+  final void Function(String userId)? onNavigateUser;
   final void Function(String postId)? onLike;
 
-  const PostCard({super.key, required this.post, this.onTapUser, this.onLike});
+  const PostCard({
+    super.key,
+    required this.post,
+    this.onTapUser,
+    this.onNavigateUser,
+    this.onLike,
+  });
 
   @override
   ConsumerState<PostCard> createState() => _PostCardState();
@@ -52,6 +59,7 @@ class _PostCardState extends ConsumerState<PostCard>
   late AnimationController _heartCtrl;
   bool _showDoubleTapHeart = false;
   OverlayEntry? _reactionOverlay;
+  final ValueNotifier<Offset?> _dragPositionNotifier = ValueNotifier(null);
 
   @override
   void initState() {
@@ -65,6 +73,7 @@ class _PostCardState extends ConsumerState<PostCard>
   @override
   void dispose() {
     _heartCtrl.dispose();
+    _dragPositionNotifier.dispose();
     _removeReactionOverlay();
     super.dispose();
   }
@@ -72,6 +81,14 @@ class _PostCardState extends ConsumerState<PostCard>
   String? get _currentUserId => ref.read(authProvider).user?.id;
 
   bool get _isOwnPost => _currentUserId == widget.post.userId;
+
+  void _navigateToUser(String userId) {
+    if (widget.onNavigateUser != null) {
+      widget.onNavigateUser!(userId);
+    } else {
+      Navigator.pushNamed(context, '/user-profile', arguments: userId);
+    }
+  }
 
   void _handleReactionTap() {
     final post = widget.post;
@@ -109,6 +126,7 @@ class _PostCardState extends ConsumerState<PostCard>
         anchorOffset: offset,
         anchorSize: renderBox.size,
         currentReaction: widget.post.myReaction,
+        dragPositionNotifier: _dragPositionNotifier,
         onSelect: (type) {
           HapticFeedback.lightImpact();
           ref.read(feedProvider.notifier).reactToPost(widget.post.id, type);
@@ -133,7 +151,10 @@ class _PostCardState extends ConsumerState<PostCard>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _CommentsSheet(postId: widget.post.id),
+      builder: (_) => _CommentsSheet(
+        postId: widget.post.id,
+        onNavigateUser: _navigateToUser,
+      ),
     );
   }
 
@@ -300,7 +321,10 @@ class _PostCardState extends ConsumerState<PostCard>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _ReactorsSheet(postId: widget.post.id),
+      builder: (_) => _ReactorsSheet(
+        postId: widget.post.id,
+        onNavigateUser: _navigateToUser,
+      ),
     );
   }
 
@@ -354,6 +378,7 @@ class _PostCardState extends ConsumerState<PostCard>
                             padding: const EdgeInsets.only(top: 1),
                             child: _TaggedUsersLine(
                               taggedUsers: post.taggedUsers,
+                              onNavigateUser: _navigateToUser,
                             ),
                           ),
                         const SizedBox(height: 2),
@@ -427,6 +452,7 @@ class _PostCardState extends ConsumerState<PostCard>
                 data: post.sharedPost!,
                 resolveUrl: _resolveUrl,
                 postId: post.id,
+                onNavigateUser: _navigateToUser,
               )
             // ── Shared post embed (old prefix-based) ────────────────
             else if (post.sharedData != null)
@@ -517,7 +543,15 @@ class _PostCardState extends ConsumerState<PostCard>
                   Expanded(
                     child: Builder(
                       builder: (btnCtx) => GestureDetector(
-                        onLongPress: () => _showReactionPickerOverlay(btnCtx),
+                        onLongPressStart: (_) {
+                          _showReactionPickerOverlay(btnCtx);
+                        },
+                        onLongPressMoveUpdate: (details) {
+                          _dragPositionNotifier.value = details.globalPosition;
+                        },
+                        onLongPressEnd: (_) {
+                          _dragPositionNotifier.value = null;
+                        },
                         child: _ActionButton(
                           icon: post.myReaction != null
                               ? null
@@ -653,8 +687,10 @@ class _ReactionSummary extends StatelessWidget {
                           ],
                         ),
                         alignment: Alignment.center,
-                        child: Text(topEmojis[i],
-                            style: const TextStyle(fontSize: 15)),
+                        child: Text(
+                          topEmojis[i],
+                          style: const TextStyle(fontSize: 15),
+                        ),
                       ),
                     ),
                   ),
@@ -678,28 +714,37 @@ class _ReactionSummary extends StatelessWidget {
           ),
           const SizedBox(width: 2),
           // Individual emoji counts
-          ...sorted.take(3).map((e) => Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_reactionEmojis[e.key] ?? '👍',
-                        style: const TextStyle(fontSize: 11)),
-                    const SizedBox(width: 2),
-                    Text(
-                      '${e.value}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: scheme.onSurface.withAlpha(120),
-                        fontWeight: FontWeight.w600,
+          ...sorted
+              .take(3)
+              .map(
+                (e) => Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _reactionEmojis[e.key] ?? '👍',
+                        style: const TextStyle(fontSize: 11),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 2),
+                      Text(
+                        '${e.value}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurface.withAlpha(120),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              )),
+              ),
           const Spacer(),
-          Icon(Icons.chevron_right_rounded,
-              size: 16, color: scheme.onSurface.withAlpha(80)),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 16,
+            color: scheme.onSurface.withAlpha(80),
+          ),
         ],
       ),
     );
@@ -717,6 +762,7 @@ class _ReactionPickerOverlay extends StatefulWidget {
   final Offset anchorOffset;
   final Size anchorSize;
   final String? currentReaction;
+  final ValueNotifier<Offset?> dragPositionNotifier;
   final void Function(String type) onSelect;
   final VoidCallback onDismiss;
 
@@ -724,6 +770,7 @@ class _ReactionPickerOverlay extends StatefulWidget {
     required this.anchorOffset,
     required this.anchorSize,
     this.currentReaction,
+    required this.dragPositionNotifier,
     required this.onSelect,
     required this.onDismiss,
   });
@@ -746,33 +793,49 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
     super.initState();
     _entryCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 450),
+      duration: const Duration(milliseconds: 500),
     )..forward();
     _glowCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
     _bgFadeCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 250),
     )..forward();
 
     if (widget.currentReaction != null) {
       final idx = _reactions.indexOf(widget.currentReaction!);
       if (idx >= 0) _selectedIndex = idx;
     }
+
+    widget.dragPositionNotifier.addListener(_onDragUpdate);
   }
 
   @override
   void dispose() {
+    widget.dragPositionNotifier.removeListener(_onDragUpdate);
     _entryCtrl.dispose();
     _glowCtrl.dispose();
     _bgFadeCtrl.dispose();
     super.dispose();
   }
 
-  void _handlePanUpdate(DragUpdateDetails details) {
-    final pos = details.globalPosition;
+  void _onDragUpdate() {
+    final pos = widget.dragPositionNotifier.value;
+    if (pos == null) {
+      // Long press ended — commit selection or dismiss
+      if (_hoveredIndex != null) {
+        widget.onSelect(_reactions[_hoveredIndex!]);
+      } else {
+        widget.onDismiss();
+      }
+      return;
+    }
+    _hitTestEmojis(pos);
+  }
+
+  void _hitTestEmojis(Offset globalPos) {
     int? found;
     for (int i = 0; i < _emojiKeys.length; i++) {
       final key = _emojiKeys[i];
@@ -780,12 +843,12 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
       if (box == null) continue;
       final topLeft = box.localToGlobal(Offset.zero);
       final rect = Rect.fromLTWH(
-        topLeft.dx - 8,
-        topLeft.dy - 20,
-        box.size.width + 16,
-        box.size.height + 40,
+        topLeft.dx - 12,
+        topLeft.dy - 40,
+        box.size.width + 24,
+        box.size.height + 60,
       );
-      if (rect.contains(pos)) {
+      if (rect.contains(globalPos)) {
         found = i;
         break;
       }
@@ -794,6 +857,10 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
       if (found != null) HapticFeedback.selectionClick();
       setState(() => _hoveredIndex = found);
     }
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    _hitTestEmojis(details.globalPosition);
   }
 
   void _handlePanEnd(DragEndDetails _) {
@@ -807,9 +874,14 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final top = (widget.anchorOffset.dy - 90).clamp(40.0, double.infinity);
-    final left = (widget.anchorOffset.dx + widget.anchorSize.width / 2 - 160)
-        .clamp(12.0, screenWidth - 332.0);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Position the picker above the button
+    final pickerWidth = 280.0;
+    final top = (widget.anchorOffset.dy - 100).clamp(40.0, double.infinity);
+    final left =
+        (widget.anchorOffset.dx + widget.anchorSize.width / 2 - pickerWidth / 2)
+            .clamp(12.0, screenWidth - pickerWidth - 12.0);
 
     return GestureDetector(
       onTap: widget.onDismiss,
@@ -818,128 +890,117 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
       behavior: HitTestBehavior.translucent,
       child: SizedBox.expand(
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            // Animated backdrop
+            // Animated dim backdrop
             AnimatedBuilder(
               animation: _bgFadeCtrl,
               builder: (_, __) => Positioned.fill(
                 child: Container(
                   color: Colors.black.withAlpha(
-                      (35 * _bgFadeCtrl.value).round()),
+                    (25 * _bgFadeCtrl.value).round(),
+                  ),
                 ),
               ),
             ),
+            // Picker container
             Positioned(
               top: top,
               left: left,
               child: AnimatedBuilder(
                 animation: _entryCtrl,
                 builder: (_, child) {
-                  final t = Curves.elasticOut
-                      .transform(_entryCtrl.value.clamp(0.0, 1.0));
-                  return Transform.scale(
-                    scale: t,
+                  final t = Curves.elasticOut.transform(
+                    _entryCtrl.value.clamp(0.0, 1.0),
+                  );
+                  return Transform(
                     alignment: Alignment.bottomCenter,
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.002) // perspective
+                      ..scale(t, t, 1.0)
+                      ..rotateX((1.0 - t) * 0.3), // subtle 3D tilt on entry
                     child: Opacity(
-                      opacity: (_entryCtrl.value * 2).clamp(0.0, 1.0),
+                      opacity: (_entryCtrl.value * 2.5).clamp(0.0, 1.0),
                       child: child,
                     ),
                   );
                 },
-                child: AnimatedBuilder(
-                  animation: _glowCtrl,
-                  builder: (_, child) {
-                    final glowAlpha = (25 + 20 * _glowCtrl.value).round();
-                    return Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(36),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withAlpha(glowAlpha),
-                            blurRadius: 28,
-                            spreadRadius: 3,
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withAlpha(30),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                child: SizedBox(
+                  width: pickerWidth,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      // ── Small pill background ──
+                      AnimatedBuilder(
+                        animation: _glowCtrl,
+                        builder: (_, __) {
+                          final glowVal = _glowCtrl.value;
+                          return Container(
+                            width: pickerWidth - 40,
+                            height: 44,
+                            margin: const EdgeInsets.only(top: 30),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              color: isDark
+                                  ? const Color(0xFF1A1D3D).withAlpha(220)
+                                  : Colors.white.withAlpha(230),
+                              border: Border.all(
+                                color: scheme.primary.withAlpha(
+                                  (40 + 20 * glowVal).round(),
+                                ),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: scheme.primary.withAlpha(
+                                    (30 + 25 * glowVal).round(),
+                                  ),
+                                  blurRadius: 24,
+                                  spreadRadius: 2,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(40),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                      child: child,
-                    );
-                  },
-                  child: Material(
-                    elevation: 16,
-                    shadowColor: Colors.black.withAlpha(70),
-                    borderRadius: BorderRadius.circular(36),
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF1A1D3D)
-                        : Colors.white,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(36),
-                        border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withAlpha(25),
-                          width: 1,
+                      // ── Emojis floating ABOVE the pill ──
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(_reactions.length, (i) {
+                            return _EmojiItem3D(
+                              key: _emojiKeys[i],
+                              emoji: _emojis[i],
+                              label: _reactionLabels[_reactions[i]] ?? '',
+                              isHovered: _hoveredIndex == i,
+                              isSelected: _selectedIndex == i,
+                              index: i,
+                              entryAnimation: _entryCtrl,
+                              onTap: () => widget.onSelect(_reactions[i]),
+                              onHoverStart: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _hoveredIndex = i);
+                              },
+                              onHoverEnd: () =>
+                                  setState(() => _hoveredIndex = null),
+                            );
+                          }),
                         ),
                       ),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(_reactions.length, (i) {
-                          return _EmojiItem3D(
-                            key: _emojiKeys[i],
-                            emoji: _emojis[i],
-                            label: _reactionLabels[_reactions[i]] ?? '',
-                            isHovered: _hoveredIndex == i,
-                            isSelected: _selectedIndex == i,
-                            index: i,
-                            entryAnimation: _entryCtrl,
-                            onTap: () => widget.onSelect(_reactions[i]),
-                            onHoverStart: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _hoveredIndex = i);
-                            },
-                            onHoverEnd: () =>
-                                setState(() => _hoveredIndex = null),
-                          );
-                        }),
-                      ),
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
-            // Hovered emoji name floating indicator
-            if (_hoveredIndex != null)
-              Positioned(
-                top: top - 22,
-                left: left + 12 + _hoveredIndex! * 48.0,
-                child: AnimatedOpacity(
-                  opacity: 1.0,
-                  duration: const Duration(milliseconds: 100),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _reactionLabels[_reactions[_hoveredIndex!]] ?? '',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -978,10 +1039,8 @@ class _EmojiItem3D extends StatefulWidget {
 }
 
 class _EmojiItem3DState extends State<_EmojiItem3D>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late AnimationController _bounceCtrl;
-  late AnimationController _wobbleCtrl;
-  late AnimationController _shineCtrl;
 
   @override
   void initState() {
@@ -990,21 +1049,11 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _wobbleCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _shineCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
   }
 
   @override
   void dispose() {
     _bounceCtrl.dispose();
-    _wobbleCtrl.dispose();
-    _shineCtrl.dispose();
     super.dispose();
   }
 
@@ -1013,149 +1062,151 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
     super.didUpdateWidget(oldWidget);
     if (widget.isHovered && !oldWidget.isHovered) {
       _bounceCtrl.forward(from: 0);
-      _wobbleCtrl.forward(from: 0);
-      _shineCtrl.forward(from: 0);
     }
     if (!widget.isHovered && oldWidget.isHovered) {
-      _wobbleCtrl.stop();
-      _shineCtrl.stop();
+      _bounceCtrl.reverse();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final scale = widget.isHovered ? 1.65 : (widget.isSelected ? 1.2 : 1.0);
-    final yOffset = widget.isHovered ? -28.0 : 0.0;
-
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => widget.onHoverStart(),
       onTapCancel: widget.onHoverEnd,
       onTapUp: (_) => widget.onHoverEnd(),
       child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: Duration(milliseconds: 300 + widget.index * 60),
-        curve: Curves.elasticOut,
-        builder: (_, entryVal, child) =>
-            Transform.scale(scale: entryVal, child: child),
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: Duration(milliseconds: 300 + widget.index * 70),
+        curve: Curves.easeOutBack,
+        builder: (_, entryVal, child) {
+          // Each emoji pops up from below with staggered delay
+          return Transform.translate(
+            offset: Offset(0, 20 * (1.0 - entryVal)),
+            child: Transform.scale(scale: entryVal, child: child),
+          );
+        },
         child: AnimatedBuilder(
-          animation: Listenable.merge([_bounceCtrl, _wobbleCtrl]),
+          animation: _bounceCtrl,
           builder: (_, child) {
-            final bounce = math.sin(_bounceCtrl.value * math.pi * 2) * 6;
-            final wobble = math.sin(_wobbleCtrl.value * math.pi * 3) * 3;
-            final rotZ = widget.isHovered
-                ? math.sin(_wobbleCtrl.value * math.pi * 2) * 0.15
+            final bounceT = Curves.elasticOut.transform(
+              _bounceCtrl.value.clamp(0.0, 1.0),
+            );
+            final jumpY = widget.isHovered
+                ? -32.0 - math.sin(bounceT * math.pi) * 8.0
+                : 0.0;
+            final scale = widget.isHovered
+                ? 1.8
+                : (widget.isSelected ? 1.25 : 1.0);
+            // 3D perspective tilt when hovered
+            final tiltX = widget.isHovered
+                ? math.sin(bounceT * math.pi) * 0.15
                 : 0.0;
             return AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutBack,
               transform: Matrix4.identity()
-                ..translate(wobble, yOffset - bounce.abs(), 0.0)
-                ..scale(scale, scale, 1.0)
-                ..setEntry(3, 2, 0.003)
-                ..rotateX(widget.isHovered ? -0.15 : 0.0)
-                ..rotateY(widget.isHovered ? 0.08 : 0.0)
-                ..rotateZ(rotZ),
+                ..setEntry(3, 2, 0.003) // add perspective
+                ..translate(0.0, jumpY, 0.0)
+                ..rotateX(tiltX),
               transformAlignment: Alignment.center,
-              padding: EdgeInsets.symmetric(
-                horizontal: widget.isHovered ? 3 : 6,
-                vertical: 2,
+              child: AnimatedScale(
+                scale: scale,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutBack,
+                alignment: Alignment.center,
+                child: SizedBox(width: 44, child: child),
               ),
-              child: child,
             );
           },
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Label tooltip
+              // Label — floating dark bubble above emoji
               AnimatedOpacity(
                 opacity: widget.isHovered ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 120),
                 child: AnimatedSlide(
-                  offset: Offset(0, widget.isHovered ? 0 : 0.5),
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutBack,
+                  offset: Offset(0, widget.isHovered ? 0 : 0.4),
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    margin: const EdgeInsets.only(bottom: 6),
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 4),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          scheme.primary.withAlpha(40),
-                          scheme.primary.withAlpha(20),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: scheme.primary.withAlpha(80)),
+                      color: scheme.primary.withAlpha(220),
+                      borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: scheme.primary.withAlpha(30),
-                          blurRadius: 8,
+                          color: scheme.primary.withAlpha(60),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
                     child: Text(
                       widget.label,
-                      style: TextStyle(
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
-                        color: scheme.primary,
+                        color: Colors.white,
                         letterSpacing: 0.3,
                       ),
                     ),
                   ),
                 ),
               ),
-              // Emoji with 3D glow + shine
-              AnimatedBuilder(
-                animation: _shineCtrl,
-                builder: (_, child) {
-                  return Container(
-                    decoration: widget.isHovered
-                        ? BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: scheme.primary.withAlpha(
-                                    (50 + 30 * math.sin(_shineCtrl.value * math.pi)).round()),
-                                blurRadius: 18,
-                                spreadRadius: 4,
-                              ),
-                              BoxShadow(
-                                color: Colors.white.withAlpha(
-                                    (20 * _shineCtrl.value).round()),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          )
-                        : null,
-                    child: child,
-                  );
-                },
+              // Emoji with glow ring when hovered
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: widget.isHovered
+                      ? [
+                          BoxShadow(
+                            color: scheme.primary.withAlpha(50),
+                            blurRadius: 18,
+                            spreadRadius: 2,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withAlpha(30),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : widget.isSelected
+                      ? [
+                          BoxShadow(
+                            color: scheme.primary.withAlpha(30),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : [],
+                ),
                 child: Text(
                   widget.emoji,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: widget.isHovered ? 40 : 28,
+                    fontSize: widget.isHovered ? 36 : 28,
                     shadows: widget.isHovered
                         ? [
                             Shadow(
-                              blurRadius: 12,
+                              blurRadius: 14,
                               color: Colors.black.withAlpha(50),
-                              offset: const Offset(0, 6),
-                            ),
-                            Shadow(
-                              blurRadius: 4,
-                              color: Colors.white.withAlpha(30),
-                              offset: const Offset(-1, -2),
+                              offset: const Offset(0, 5),
                             ),
                           ]
                         : [
                             Shadow(
-                              blurRadius: 4,
-                              color: Colors.black.withAlpha(20),
-                              offset: const Offset(0, 2),
+                              blurRadius: 3,
+                              color: Colors.black.withAlpha(15),
+                              offset: const Offset(0, 1),
                             ),
                           ],
                   ),
@@ -1173,7 +1224,8 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
 
 class _ReactorsSheet extends ConsumerStatefulWidget {
   final String postId;
-  const _ReactorsSheet({required this.postId});
+  final void Function(String userId)? onNavigateUser;
+  const _ReactorsSheet({required this.postId, this.onNavigateUser});
 
   @override
   ConsumerState<_ReactorsSheet> createState() => _ReactorsSheetState();
@@ -1191,8 +1243,9 @@ class _ReactorsSheetState extends ConsumerState<_ReactorsSheet> {
   }
 
   Future<void> _load() async {
-    final summary =
-        await ref.read(feedProvider.notifier).getPostReactors(widget.postId);
+    final summary = await ref
+        .read(feedProvider.notifier)
+        .getPostReactors(widget.postId);
     if (mounted) {
       setState(() {
         _summary = summary;
@@ -1236,16 +1289,17 @@ class _ReactorsSheetState extends ConsumerState<_ReactorsSheet> {
               children: [
                 Text(
                   'Reactions',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 if (_summary != null) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.primary.withAlpha(20),
                       borderRadius: BorderRadius.circular(12),
@@ -1277,12 +1331,14 @@ class _ReactorsSheetState extends ConsumerState<_ReactorsSheet> {
                     isSelected: _filterType == null,
                     onTap: () => setState(() => _filterType = null),
                   ),
-                  ...types.map((type) => _FilterChip(
-                        emoji: _reactionEmojis[type] ?? '👍',
-                        count: _summary!.counts[type] ?? 0,
-                        isSelected: _filterType == type,
-                        onTap: () => setState(() => _filterType = type),
-                      )),
+                  ...types.map(
+                    (type) => _FilterChip(
+                      emoji: _reactionEmojis[type] ?? '👍',
+                      count: _summary!.counts[type] ?? 0,
+                      isSelected: _filterType == type,
+                      onTap: () => setState(() => _filterType = type),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1291,71 +1347,83 @@ class _ReactorsSheetState extends ConsumerState<_ReactorsSheet> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredReactors.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No reactions yet',
-                          style:
-                              TextStyle(color: scheme.onSurface.withAlpha(100)),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: scrollCtrl,
-                        itemCount: _filteredReactors.length,
-                        itemBuilder: (_, i) {
-                          final reactor = _filteredReactors[i];
-                          return ListTile(
-                            leading: Stack(
-                              children: [
-                                AvatarWidget(
-                                  url: reactor.profilePictureUrl,
-                                  name: reactor.displayName,
-                                  radius: 20,
-                                  onTap: () {
-                                    Navigator.pop(context);
-                                    Navigator.pushNamed(context,
-                                        '/user-profile',
-                                        arguments: reactor.userId);
-                                  },
-                                ),
-                                Positioned(
-                                  right: -2,
-                                  bottom: -2,
-                                  child: Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      color: scheme.surface,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: scheme.surface, width: 1),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      _reactionEmojis[reactor.reactionType] ??
-                                          '👍',
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
+                ? Center(
+                    child: Text(
+                      'No reactions yet',
+                      style: TextStyle(color: scheme.onSurface.withAlpha(100)),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: scrollCtrl,
+                    itemCount: _filteredReactors.length,
+                    itemBuilder: (_, i) {
+                      final reactor = _filteredReactors[i];
+                      return ListTile(
+                        leading: Stack(
+                          children: [
+                            AvatarWidget(
+                              url: reactor.profilePictureUrl,
+                              name: reactor.displayName,
+                              radius: 20,
+                              onTap: () {
+                                Navigator.pop(context);
+                                if (widget.onNavigateUser != null) {
+                                  widget.onNavigateUser!(reactor.userId);
+                                } else {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/user-profile',
+                                    arguments: reactor.userId,
+                                  );
+                                }
+                              },
+                            ),
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: scheme.surface,
+                                    width: 1,
                                   ),
                                 ),
-                              ],
+                                alignment: Alignment.center,
+                                child: Text(
+                                  _reactionEmojis[reactor.reactionType] ?? '👍',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                              ),
                             ),
-                            title: Text(
-                              reactor.displayName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            trailing: Text(
-                              _reactionEmojis[reactor.reactionType] ?? '👍',
-                              style: const TextStyle(fontSize: 20),
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/user-profile',
-                                  arguments: reactor.userId);
-                            },
-                          );
+                          ],
+                        ),
+                        title: Text(
+                          reactor.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        trailing: Text(
+                          _reactionEmojis[reactor.reactionType] ?? '👍',
+                          style: const TextStyle(fontSize: 20),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (widget.onNavigateUser != null) {
+                            widget.onNavigateUser!(reactor.userId);
+                          } else {
+                            Navigator.pushNamed(
+                              context,
+                              '/user-profile',
+                              arguments: reactor.userId,
+                            );
+                          }
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -1389,8 +1457,9 @@ class _FilterChip extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color:
-                isSelected ? scheme.primary.withAlpha(25) : Colors.transparent,
+            color: isSelected
+                ? scheme.primary.withAlpha(25)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isSelected
@@ -1436,7 +1505,8 @@ class _FilterChip extends StatelessWidget {
 
 class _TaggedUsersLine extends StatelessWidget {
   final List<TaggedUser> taggedUsers;
-  const _TaggedUsersLine({required this.taggedUsers});
+  final void Function(String userId)? onNavigateUser;
+  const _TaggedUsersLine({required this.taggedUsers, this.onNavigateUser});
 
   @override
   Widget build(BuildContext context) {
@@ -1447,7 +1517,15 @@ class _TaggedUsersLine extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        Navigator.pushNamed(context, '/user-profile', arguments: first.userId);
+        if (onNavigateUser != null) {
+          onNavigateUser!(first.userId);
+        } else {
+          Navigator.pushNamed(
+            context,
+            '/user-profile',
+            arguments: first.userId,
+          );
+        }
       },
       child: Text.rich(
         TextSpan(
@@ -1518,8 +1596,8 @@ class _ActionButtonState extends State<_ActionButton> {
         leading = AnimatedBuilder(
           animation: widget.animCtrl!,
           builder: (_, child) => Transform.scale(
-            scale: 1.0 +
-                0.3 * Curves.elasticOut.transform(widget.animCtrl!.value),
+            scale:
+                1.0 + 0.3 * Curves.elasticOut.transform(widget.animCtrl!.value),
             child: child,
           ),
           child: leading,
@@ -1531,8 +1609,8 @@ class _ActionButtonState extends State<_ActionButton> {
         leading = AnimatedBuilder(
           animation: widget.animCtrl!,
           builder: (_, child) => Transform.scale(
-            scale: 1.0 +
-                0.3 * Curves.elasticOut.transform(widget.animCtrl!.value),
+            scale:
+                1.0 + 0.3 * Curves.elasticOut.transform(widget.animCtrl!.value),
             child: child,
           ),
           child: leading,
@@ -1583,11 +1661,13 @@ class _SharedPostEmbedRef extends StatelessWidget {
   final SharedPostRef data;
   final String Function(String?) resolveUrl;
   final String postId;
+  final void Function(String userId)? onNavigateUser;
 
   const _SharedPostEmbedRef({
     required this.data,
     required this.resolveUrl,
     required this.postId,
+    this.onNavigateUser,
   });
 
   @override
@@ -1600,8 +1680,9 @@ class _SharedPostEmbedRef extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
         child: Container(
           decoration: BoxDecoration(
-            color:
-                isDark ? scheme.error.withAlpha(15) : Colors.red.withAlpha(10),
+            color: isDark
+                ? scheme.error.withAlpha(15)
+                : Colors.red.withAlpha(10),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: scheme.error.withAlpha(40)),
           ),
@@ -1614,25 +1695,33 @@ class _SharedPostEmbedRef extends StatelessWidget {
                   color: scheme.error.withAlpha(20),
                   shape: BoxShape.circle,
                 ),
-                child:
-                    Icon(Icons.link_off_rounded, color: scheme.error, size: 24),
+                child: Icon(
+                  Icons.link_off_rounded,
+                  color: scheme.error,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Content Unavailable',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: scheme.error)),
+                    Text(
+                      'Content Unavailable',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: scheme.error,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Text(
-                        'This post has been removed by the original author.',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurface.withAlpha(120))),
+                      'This post has been removed by the original author.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurface.withAlpha(120),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1648,7 +1737,15 @@ class _SharedPostEmbedRef extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: GestureDetector(
         onTap: () {
-          Navigator.pushNamed(context, '/user-profile', arguments: data.userId);
+          if (onNavigateUser != null) {
+            onNavigateUser!(data.userId);
+          } else {
+            Navigator.pushNamed(
+              context,
+              '/user-profile',
+              arguments: data.userId,
+            );
+          }
         },
         child: Container(
           decoration: BoxDecoration(
@@ -1657,9 +1754,10 @@ class _SharedPostEmbedRef extends StatelessWidget {
                 : const Color(0xFFF5F7FF),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: isDark
-                    ? scheme.primary.withAlpha(30)
-                    : Colors.grey.withAlpha(40)),
+              color: isDark
+                  ? scheme.primary.withAlpha(30)
+                  : Colors.grey.withAlpha(40),
+            ),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -1670,36 +1768,49 @@ class _SharedPostEmbedRef extends StatelessWidget {
                 child: Row(
                   children: [
                     AvatarWidget(
-                        url: data.userProfilePicture,
-                        name: data.userName,
-                        radius: 14),
+                      url: data.userProfilePicture,
+                      name: data.userName,
+                      radius: 14,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                        child: Text(data.userName,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13))),
-                    Icon(Icons.public_rounded,
-                        size: 14, color: scheme.onSurface.withAlpha(80)),
+                      child: Text(
+                        data.userName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.public_rounded,
+                      size: 14,
+                      color: scheme.onSurface.withAlpha(80),
+                    ),
                   ],
                 ),
               ),
               if (data.content.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: Text(data.content,
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(fontSize: 14)),
+                  child: Text(
+                    data.content,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                  ),
                 ),
               if (mediaUrl != null && mediaUrl.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: GestureDetector(
-                    onTap: () => FullscreenImageViewer.open(context,
-                        imageUrl: mediaUrl, heroTag: 'shared_img_$postId'),
+                    onTap: () => FullscreenImageViewer.open(
+                      context,
+                      imageUrl: mediaUrl,
+                      heroTag: 'shared_img_$postId',
+                    ),
                     child: Hero(
                       tag: 'shared_img_$postId',
                       child: CachedNetworkImage(
@@ -1753,9 +1864,10 @@ class _SharedPostEmbedLegacy extends StatelessWidget {
               : const Color(0xFFF5F7FF),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: isDark
-                  ? scheme.primary.withAlpha(30)
-                  : Colors.grey.withAlpha(40)),
+            color: isDark
+                ? scheme.primary.withAlpha(30)
+                : Colors.grey.withAlpha(40),
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -1766,36 +1878,49 @@ class _SharedPostEmbedLegacy extends StatelessWidget {
               child: Row(
                 children: [
                   AvatarWidget(
-                      url: data.originalUserPicture,
-                      name: data.originalUserName,
-                      radius: 14),
+                    url: data.originalUserPicture,
+                    name: data.originalUserName,
+                    radius: 14,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
-                      child: Text(data.originalUserName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13))),
-                  Icon(Icons.public_rounded,
-                      size: 14, color: scheme.onSurface.withAlpha(80)),
+                    child: Text(
+                      data.originalUserName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.public_rounded,
+                    size: 14,
+                    color: scheme.onSurface.withAlpha(80),
+                  ),
                 ],
               ),
             ),
             if (data.originalContent.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Text(data.originalContent,
-                    maxLines: 4,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontSize: 14)),
+                child: Text(
+                  data.originalContent,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
               ),
             if (mediaUrl != null && mediaUrl.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: GestureDetector(
-                  onTap: () => FullscreenImageViewer.open(context,
-                      imageUrl: mediaUrl, heroTag: 'shared_img_$postId'),
+                  onTap: () => FullscreenImageViewer.open(
+                    context,
+                    imageUrl: mediaUrl,
+                    heroTag: 'shared_img_$postId',
+                  ),
                   child: Hero(
                     tag: 'shared_img_$postId',
                     child: CachedNetworkImage(
@@ -1822,7 +1947,8 @@ class _SharedPostEmbedLegacy extends StatelessWidget {
 
 class _CommentsSheet extends ConsumerStatefulWidget {
   final String postId;
-  const _CommentsSheet({required this.postId});
+  final void Function(String userId)? onNavigateUser;
+  const _CommentsSheet({required this.postId, this.onNavigateUser});
 
   @override
   ConsumerState<_CommentsSheet> createState() => _CommentsSheetState();
@@ -1920,6 +2046,7 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
       builder: (_) => _CommentReactorsSheet(
         postId: widget.postId,
         commentId: comment.id,
+        onNavigateUser: widget.onNavigateUser,
       ),
     );
   }
@@ -1951,56 +2078,68 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Comments',
-                style: Theme.of(context).textTheme.titleLarge),
+            child: Text(
+              'Comments',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
           ),
           const Divider(),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _comments.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.chat_bubble_outline,
-                                size: 48,
-                                color: scheme.onSurface.withAlpha(60)),
-                            const SizedBox(height: 12),
-                            Text('No comments yet',
-                                style:
-                                    Theme.of(context).textTheme.bodyMedium),
-                            const SizedBox(height: 4),
-                            Text('Be the first to comment!',
-                                style:
-                                    Theme.of(context).textTheme.labelSmall),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 48,
+                          color: scheme.onSurface.withAlpha(60),
                         ),
-                      )
-                    : ListView.separated(
-                        controller: scrollCtrl,
-                        itemCount: _comments.length,
-                        separatorBuilder: (_, __) => Divider(
-                          height: 1,
-                          color: scheme.onSurface.withAlpha(15),
-                          indent: 68,
+                        const SizedBox(height: 12),
+                        Text(
+                          'No comments yet',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                        itemBuilder: (_, i) {
-                          final c = _comments[i];
-                          return _CommentTile(
-                            comment: c,
-                            onTapUser: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/user-profile',
-                                  arguments: c.userId);
-                            },
-                            onReact: (type) => _reactToComment(i, type),
-                            onRemoveReaction: () =>
-                                _removeCommentReaction(i),
-                            onTapReactions: () => _showCommentReactors(c),
-                          );
+                        const SizedBox(height: 4),
+                        Text(
+                          'Be the first to comment!',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    controller: scrollCtrl,
+                    itemCount: _comments.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: scheme.onSurface.withAlpha(15),
+                      indent: 68,
+                    ),
+                    itemBuilder: (_, i) {
+                      final c = _comments[i];
+                      return _CommentTile(
+                        comment: c,
+                        onTapUser: () {
+                          Navigator.pop(context);
+                          if (widget.onNavigateUser != null) {
+                            widget.onNavigateUser!(c.userId);
+                          } else {
+                            Navigator.pushNamed(
+                              context,
+                              '/user-profile',
+                              arguments: c.userId,
+                            );
+                          }
                         },
-                      ),
+                        onReact: (type) => _reactToComment(i, type),
+                        onRemoveReaction: () => _removeCommentReaction(i),
+                        onTapReactions: () => _showCommentReactors(c),
+                      );
+                    },
+                  ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -2022,7 +2161,9 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                     decoration: InputDecoration(
                       hintText: 'Add a comment...',
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       suffixIcon: IconButton(
                         onPressed: _sending ? null : _send,
                         icon: _sending
@@ -2030,9 +2171,14 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2))
-                            : Icon(Icons.send_rounded,
-                                color: scheme.primary, size: 20),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                Icons.send_rounded,
+                                color: scheme.primary,
+                                size: 20,
+                              ),
                       ),
                     ),
                     textInputAction: TextInputAction.send,
@@ -2101,26 +2247,31 @@ class _CommentTileState extends State<_CommentTile> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: scheme.surface.withAlpha(180),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                            color: scheme.onSurface.withAlpha(15)),
+                          color: scheme.onSurface.withAlpha(15),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           GestureDetector(
                             onTap: widget.onTapUser,
-                            child: Text(c.userName,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13)),
+                            child: Text(
+                              c.userName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 2),
-                          Text(c.content,
-                              style: const TextStyle(fontSize: 14)),
+                          Text(c.content, style: const TextStyle(fontSize: 14)),
                         ],
                       ),
                     ),
@@ -2130,8 +2281,9 @@ class _CommentTileState extends State<_CommentTile> {
                         Text(
                           _timeAgo(c.createdAt),
                           style: TextStyle(
-                              fontSize: 11,
-                              color: scheme.onSurface.withAlpha(80)),
+                            fontSize: 11,
+                            color: scheme.onSurface.withAlpha(80),
+                          ),
                         ),
                         const SizedBox(width: 14),
                         GestureDetector(
@@ -2145,8 +2297,9 @@ class _CommentTileState extends State<_CommentTile> {
                           },
                           onLongPress: () {
                             HapticFeedback.mediumImpact();
-                            setState(() =>
-                                _showReactionPicker = !_showReactionPicker);
+                            setState(
+                              () => _showReactionPicker = !_showReactionPicker,
+                            );
                           },
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -2161,15 +2314,16 @@ class _CommentTileState extends State<_CommentTile> {
                                 ),
                               Text(
                                 c.myReaction != null
-                                    ? (_reactionLabels[c.myReaction!] ??
-                                        'Like')
+                                    ? (_reactionLabels[c.myReaction!] ?? 'Like')
                                     : 'Like',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: c.myReaction != null
                                       ? _getCommentReactionColor(
-                                          c.myReaction!, scheme)
+                                          c.myReaction!,
+                                          scheme,
+                                        )
                                       : scheme.onSurface.withAlpha(120),
                                 ),
                               ),
@@ -2186,14 +2340,17 @@ class _CommentTileState extends State<_CommentTile> {
                                 ...c.reactionCounts.entries
                                     .toList()
                                     .take(3)
-                                    .map((e) => Padding(
-                                          padding:
-                                              const EdgeInsets.only(right: 1),
-                                          child: Text(
-                                              _reactionEmojis[e.key] ?? '👍',
-                                              style: const TextStyle(
-                                                  fontSize: 12)),
-                                        )),
+                                    .map(
+                                      (e) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 1,
+                                        ),
+                                        child: Text(
+                                          _reactionEmojis[e.key] ?? '👍',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ),
                                 const SizedBox(width: 2),
                                 Text(
                                   '${c.totalReactions}',
@@ -2369,47 +2526,54 @@ class _CommentReactionPickerState extends State<_CommentReactionPicker>
                   curve: Curves.elasticOut,
                   builder: (_, v, child) =>
                       Transform.scale(scale: v, child: child),
-                  child: AnimatedContainer(
+                  child: AnimatedScale(
+                    scale: isHovered ? 1.45 : (isCurrent ? 1.15 : 1.0),
                     duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOutBack,
-                    transform: Matrix4.identity()
-                      ..translate(0.0, isHovered ? -12.0 : 0.0)
-                      ..scale(
-                          isHovered ? 1.45 : (isCurrent ? 1.15 : 1.0),
-                          isHovered ? 1.45 : (isCurrent ? 1.15 : 1.0)),
-                    transformAlignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 5, vertical: 3),
-                    decoration: (isCurrent && !isHovered)
-                        ? BoxDecoration(
-                            color: scheme.primary.withAlpha(25),
-                            shape: BoxShape.circle,
-                          )
-                        : isHovered
-                            ? BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: scheme.primary.withAlpha(40),
-                                    blurRadius: 10,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              )
-                            : null,
-                    child: Text(
-                      _emojis[i],
-                      style: TextStyle(
-                        fontSize: isHovered ? 26 : (isCurrent ? 22 : 18),
-                        shadows: isHovered
-                            ? [
-                                Shadow(
-                                  blurRadius: 8,
-                                  color: Colors.black.withAlpha(40),
-                                  offset: const Offset(0, 3),
+                    alignment: Alignment.center,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOutBack,
+                      transform: Matrix4.translationValues(
+                        0.0,
+                        isHovered ? -12.0 : 0.0,
+                        0.0,
+                      ),
+                      transformAlignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 3,
+                      ),
+                      decoration: (isCurrent && !isHovered)
+                          ? BoxDecoration(
+                              color: scheme.primary.withAlpha(25),
+                              shape: BoxShape.circle,
+                            )
+                          : isHovered
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: scheme.primary.withAlpha(40),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
                                 ),
-                              ]
-                            : null,
+                              ],
+                            )
+                          : null,
+                      child: Text(
+                        _emojis[i],
+                        style: TextStyle(
+                          fontSize: isHovered ? 26 : (isCurrent ? 22 : 18),
+                          shadows: isHovered
+                              ? [
+                                  Shadow(
+                                    blurRadius: 8,
+                                    color: Colors.black.withAlpha(40),
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : null,
+                        ),
                       ),
                     ),
                   ),
@@ -2428,16 +2592,19 @@ class _CommentReactionPickerState extends State<_CommentReactionPicker>
 class _CommentReactorsSheet extends ConsumerStatefulWidget {
   final String postId;
   final String commentId;
-  const _CommentReactorsSheet(
-      {required this.postId, required this.commentId});
+  final void Function(String userId)? onNavigateUser;
+  const _CommentReactorsSheet({
+    required this.postId,
+    required this.commentId,
+    this.onNavigateUser,
+  });
 
   @override
   ConsumerState<_CommentReactorsSheet> createState() =>
       _CommentReactorsSheetState();
 }
 
-class _CommentReactorsSheetState
-    extends ConsumerState<_CommentReactorsSheet> {
+class _CommentReactorsSheetState extends ConsumerState<_CommentReactorsSheet> {
   ReactionSummaryModel? _summary;
   bool _loading = true;
 
@@ -2476,68 +2643,79 @@ class _CommentReactorsSheetState
             ),
           ),
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Text('Comment Reactions',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              'Comment Reactions',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
           ),
           const Divider(),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : (_summary == null || _summary!.reactors.isEmpty)
-                    ? Center(
-                        child: Text('No reactions',
-                            style: TextStyle(
-                                color: scheme.onSurface.withAlpha(100))))
-                    : ListView.builder(
-                        itemCount: _summary!.reactors.length,
-                        itemBuilder: (_, i) {
-                          final r = _summary!.reactors[i];
-                          return ListTile(
-                            leading: Stack(
-                              children: [
-                                AvatarWidget(
-                                    url: r.profilePictureUrl,
-                                    name: r.displayName,
-                                    radius: 18),
-                                Positioned(
-                                  right: -2,
-                                  bottom: -2,
-                                  child: Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: BoxDecoration(
-                                      color: scheme.surface,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                        _reactionEmojis[r.reactionType] ??
-                                            '👍',
-                                        style:
-                                            const TextStyle(fontSize: 9)),
-                                  ),
-                                ),
-                              ],
+                ? Center(
+                    child: Text(
+                      'No reactions',
+                      style: TextStyle(color: scheme.onSurface.withAlpha(100)),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _summary!.reactors.length,
+                    itemBuilder: (_, i) {
+                      final r = _summary!.reactors[i];
+                      return ListTile(
+                        leading: Stack(
+                          children: [
+                            AvatarWidget(
+                              url: r.profilePictureUrl,
+                              name: r.displayName,
+                              radius: 18,
                             ),
-                            title: Text(r.displayName,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600)),
-                            trailing: Text(
-                                _reactionEmojis[r.reactionType] ?? '👍',
-                                style: const TextStyle(fontSize: 18)),
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(context, '/user-profile',
-                                  arguments: r.userId);
-                            },
-                          );
+                            Positioned(
+                              right: -2,
+                              bottom: -2,
+                              child: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  _reactionEmojis[r.reactionType] ?? '👍',
+                                  style: const TextStyle(fontSize: 9),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        title: Text(
+                          r.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        trailing: Text(
+                          _reactionEmojis[r.reactionType] ?? '👍',
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (widget.onNavigateUser != null) {
+                            widget.onNavigateUser!(r.userId);
+                          } else {
+                            Navigator.pushNamed(
+                              context,
+                              '/user-profile',
+                              arguments: r.userId,
+                            );
+                          }
                         },
-                      ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -2606,18 +2784,22 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
             content: Row(
               children: [
                 Icon(
-                    ok ? Icons.check_circle_rounded : Icons.error_rounded,
-                    color: Colors.white,
-                    size: 18),
+                  ok ? Icons.check_circle_rounded : Icons.error_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
-                Text(ok ? 'Shared to your feed!' : 'Failed to share',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                Text(
+                  ok ? 'Shared to your feed!' : 'Failed to share',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
               ],
             ),
             backgroundColor: ok ? scheme.primary : scheme.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+              borderRadius: BorderRadius.circular(14),
+            ),
             margin: const EdgeInsets.all(16),
             duration: const Duration(seconds: 2),
           ),
@@ -2632,7 +2814,8 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
             backgroundColor: scheme.error,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+              borderRadius: BorderRadius.circular(14),
+            ),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -2652,20 +2835,22 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
 
     return SlideTransition(
       position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-          .animate(CurvedAnimation(
-              parent: _slideCtrl, curve: Curves.easeOutCubic)),
+          .animate(
+            CurvedAnimation(parent: _slideCtrl, curve: Curves.easeOutCubic),
+          ),
       child: Container(
         constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.85),
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF0F1130) : Colors.white,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withAlpha(40),
-                blurRadius: 20,
-                offset: const Offset(0, -4)),
+              color: Colors.black.withAlpha(40),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
           ],
         ),
         child: Column(
@@ -2686,14 +2871,14 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
               padding: const EdgeInsets.fromLTRB(20, 6, 12, 0),
               child: Row(
                 children: [
-                  Icon(Icons.repeat_rounded,
-                      size: 20, color: scheme.primary),
+                  Icon(Icons.repeat_rounded, size: 20, color: scheme.primary),
                   const SizedBox(width: 8),
-                  Text('Share Post',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(
+                    'Share Post',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const Spacer(),
                   FilledButton(
                     onPressed: _sharing ? null : _share,
@@ -2701,19 +2886,29 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
                       backgroundColor: scheme.primary,
                       foregroundColor: scheme.onPrimary,
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 10),
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
                     ),
                     child: _sharing
                         ? const SizedBox(
                             width: 18,
                             height: 18,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('Share',
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Share',
                             style: TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -2736,8 +2931,9 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
                       minLines: 2,
                       decoration: InputDecoration(
                         hintText: 'Say something about this...',
-                        hintStyle:
-                            TextStyle(color: scheme.onSurface.withAlpha(80)),
+                        hintStyle: TextStyle(
+                          color: scheme.onSurface.withAlpha(80),
+                        ),
                         border: InputBorder.none,
                       ),
                     ),
@@ -2749,40 +2945,46 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
                             : const Color(0xFFF5F7FF),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                            color: isDark
-                                ? scheme.primary.withAlpha(30)
-                                : Colors.grey.withAlpha(40)),
+                          color: isDark
+                              ? scheme.primary.withAlpha(30)
+                              : Colors.grey.withAlpha(40),
+                        ),
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                             child: Row(
                               children: [
                                 AvatarWidget(
-                                    url: widget.post.userProfilePicture,
-                                    name: widget.post.userName,
-                                    radius: 14),
+                                  url: widget.post.userProfilePicture,
+                                  name: widget.post.userName,
+                                  radius: 14,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                    child: Text(widget.post.userName,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13))),
+                                  child: Text(
+                                    widget.post.userName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
                           if (widget.post.displayContent.isNotEmpty)
                             Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                              child: Text(widget.post.displayContent,
-                                  maxLines: 4,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 14)),
+                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                              child: Text(
+                                widget.post.displayContent,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 14),
+                              ),
                             ),
                           if (mediaUrl != null)
                             Padding(
@@ -2793,7 +2995,9 @@ class _ShareSheetState extends ConsumerState<_ShareSheet>
                                 height: 160,
                                 fit: BoxFit.cover,
                                 placeholder: (_, __) => Container(
-                                    height: 160, color: scheme.surface),
+                                  height: 160,
+                                  color: scheme.surface,
+                                ),
                                 errorWidget: (_, __, ___) =>
                                     const SizedBox.shrink(),
                               ),
