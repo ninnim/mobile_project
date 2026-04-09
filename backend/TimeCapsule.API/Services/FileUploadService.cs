@@ -3,7 +3,7 @@ namespace TimeCapsule.API.Services;
 public class FileUploadService : IFileUploadService
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-        { ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov" };
+        { ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov", ".m4a", ".aac", ".mp3", ".wav" };
     private static readonly Dictionary<string, string[]> AllowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         { ".jpg",  new[] { "image/jpeg" } },
@@ -11,7 +11,11 @@ public class FileUploadService : IFileUploadService
         { ".png",  new[] { "image/png"  } },
         { ".gif",  new[] { "image/gif"  } },
         { ".mp4",  new[] { "video/mp4"  } },
-        { ".mov",  new[] { "video/quicktime" } }
+        { ".mov",  new[] { "video/quicktime" } },
+        { ".m4a",  new[] { "audio/mp4", "audio/x-m4a", "audio/m4a", "application/octet-stream" } },
+        { ".aac",  new[] { "audio/aac", "audio/x-aac", "application/octet-stream" } },
+        { ".mp3",  new[] { "audio/mpeg", "audio/mp3" } },
+        { ".wav",  new[] { "audio/wav", "audio/x-wav", "audio/wave" } }
     };
     private const long MaxFileSizeBytes = 50 * 1024 * 1024; // 50 MB
     private readonly string _uploadPath;

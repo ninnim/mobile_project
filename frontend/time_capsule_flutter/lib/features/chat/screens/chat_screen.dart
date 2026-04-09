@@ -66,6 +66,7 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
   final String otherId;
   final String otherName;
   Timer? _typingTimer;
+  Timer? _pollTimer;
   StreamSubscription? _msgSub;
   StreamSubscription? _typingSub;
   StreamSubscription? _readSub;
@@ -179,6 +180,30 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
       }).toList();
       state = state.copyWith(messages: updated);
     });
+
+    // Polling fallback: ensures new messages arrive even if SignalR drops
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _pollNewMessages());
+  }
+
+  Future<void> _pollNewMessages() async {
+    if (!mounted || state.messages.isEmpty) return;
+    try {
+      final res = await dioClient.get(
+        '/chats/$otherId',
+        queryParameters: {'limit': _pageSize},
+      );
+      final latest = (res.data as List<dynamic>)
+          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final existingIds = state.messages.map((m) => m.id).toSet();
+      final newMsgs = latest.where((m) => !existingIds.contains(m.id)).toList();
+      if (newMsgs.isNotEmpty) {
+        state = state.copyWith(messages: [...state.messages, ...newMsgs]);
+        dioClient.put('/chats/read/$otherId');
+      }
+    } catch (_) {
+      // Silently ignore poll failures
+    }
   }
 
   Future<ChatMessage?> sendMessage(String text) async {
@@ -197,8 +222,6 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
         messages: [...state.messages, msg],
         sending: false,
       );
-      // Relay via SignalR
-      SignalRService.instance.sendMessage(_toMap(msg), otherId);
       return msg;
     } catch (_) {
       state = state.copyWith(sending: false);
@@ -225,7 +248,6 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
         messages: [...state.messages, msg],
         sending: false,
       );
-      SignalRService.instance.sendMessage(_toMap(msg), otherId);
     } catch (_) {
       state = state.copyWith(sending: false);
     }
@@ -293,33 +315,10 @@ class _ChatNotifier extends StateNotifier<_ChatState> {
     }
   }
 
-  Map<String, dynamic> _toMap(ChatMessage m) => {
-    'id': m.id,
-    'senderId': m.senderId,
-    'receiverId': m.receiverId,
-    'message': m.message,
-    'mediaUrl': m.mediaUrl,
-    'messageType': m.messageType,
-    'status': m.status,
-    'isRead': m.isRead,
-    'createdAt': m.createdAt,
-    'reactions': m.reactions
-        .map(
-          (r) => {
-            'id': r.id,
-            'chatId': r.chatId,
-            'userId': r.userId,
-            'displayName': r.displayName,
-            'reactionType': r.reactionType,
-            'createdAt': r.createdAt,
-          },
-        )
-        .toList(),
-  };
-
   @override
   void dispose() {
     _typingTimer?.cancel();
+    _pollTimer?.cancel();
     _msgSub?.cancel();
     _typingSub?.cancel();
     _readSub?.cancel();

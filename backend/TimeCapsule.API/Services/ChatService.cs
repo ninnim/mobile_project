@@ -39,7 +39,7 @@ public class ChatService : IChatService
         var preview = dto.MessageType == "Image" ? "📷 Image"
                     : dto.MessageType == "Voice" ? "🎤 Voice message"
                     : dto.Message;
-        _ = _fcm.SendChatNotificationAsync(dto.ReceiverId, senderName, preview);
+        _ = _fcm.SendChatNotificationAsync(dto.ReceiverId, senderId, senderName, preview);
 
         return MapToDto(chat);
     }

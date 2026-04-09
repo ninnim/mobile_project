@@ -20,11 +20,32 @@ public class FcmNotificationService : IFcmNotificationService
         // Firebase is optional — if no service account path is configured the service
         // gracefully skips sending. This prevents the app from crashing during local dev
         // before Firebase is set up.
+
+        GoogleCredential? credential = null;
+
+        // 1) Try file-based credential first (local dev)
         var serviceAccountPath = config["Firebase:ServiceAccountPath"];
-        if (string.IsNullOrWhiteSpace(serviceAccountPath) || !File.Exists(serviceAccountPath))
+        if (!string.IsNullOrWhiteSpace(serviceAccountPath) && File.Exists(serviceAccountPath))
+        {
+            credential = GoogleCredential.FromFile(serviceAccountPath);
+            _logger.LogInformation("Firebase credentials loaded from file: {Path}", serviceAccountPath);
+        }
+
+        // 2) Fallback: environment variable containing the full JSON (Railway / cloud deploy)
+        if (credential == null)
+        {
+            var json = Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON");
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                credential = GoogleCredential.FromJson(json);
+                _logger.LogInformation("Firebase credentials loaded from FIREBASE_SERVICE_ACCOUNT_JSON env var.");
+            }
+        }
+
+        if (credential == null)
         {
             _logger.LogWarning("Firebase service account not configured. Push notifications disabled. " +
-                               "Set Firebase:ServiceAccountPath in appsettings.json to enable.");
+                               "Set Firebase:ServiceAccountPath or FIREBASE_SERVICE_ACCOUNT_JSON env var to enable.");
             _firebaseReady = false;
             return;
         }
@@ -35,7 +56,7 @@ public class FcmNotificationService : IFcmNotificationService
             {
                 FirebaseApp.Create(new AppOptions
                 {
-                    Credential = GoogleCredential.FromFile(serviceAccountPath)
+                    Credential = credential
                 });
             }
             _firebaseReady = true;
@@ -48,7 +69,7 @@ public class FcmNotificationService : IFcmNotificationService
         }
     }
 
-    public async Task SendChatNotificationAsync(Guid receiverId, string senderName, string messagePreview)
+    public async Task SendChatNotificationAsync(Guid receiverId, Guid senderId, string senderName, string messagePreview)
     {
         if (!_firebaseReady) return;
 
@@ -87,7 +108,7 @@ public class FcmNotificationService : IFcmNotificationService
             Data = new Dictionary<string, string>
             {
                 ["type"] = "chat",
-                ["senderId"] = receiverId.ToString(), // used by Flutter to open correct chat
+                ["senderId"] = senderId.ToString(), // used by Flutter to open correct chat
             }
         };
 
