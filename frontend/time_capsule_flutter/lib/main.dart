@@ -16,7 +16,10 @@ import 'features/auth/screens/register_screen.dart';
 import 'features/feed/screens/feed_screen.dart';
 import 'features/feed/providers/feed_provider.dart';
 import 'features/chat/screens/chat_list_screen.dart';
+import 'features/chat/providers/chat_badge_provider.dart';
 import 'features/capsule/screens/capsule_list_screen.dart';
+import 'features/notifications/screens/notification_screen.dart';
+import 'features/notifications/providers/notification_provider.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'shared/widgets/liquid_glass_navbar.dart';
@@ -214,6 +217,11 @@ class _MainShellState extends ConsumerState<MainShell> {
       label: 'Chats',
     ),
     NavItem(
+      icon: Icons.notifications_none_rounded,
+      activeIcon: Icons.notifications_rounded,
+      label: 'Alerts',
+    ),
+    NavItem(
       icon: Icons.inventory_2_outlined,
       activeIcon: Icons.inventory_2_rounded,
       label: 'Capsules',
@@ -233,6 +241,14 @@ class _MainShellState extends ConsumerState<MainShell> {
     });
     if (i == 0) {
       ref.read(feedProvider.notifier).fetchFeed(refresh: true);
+    }
+    if (i == 1) {
+      // Refresh chat badge when entering chats
+      ref.read(chatBadgeProvider.notifier).refresh();
+    }
+    if (i == 2) {
+      // Refresh notifications when entering tab
+      ref.read(notificationProvider.notifier).refresh();
     }
   }
 
@@ -284,6 +300,19 @@ class _MainShellState extends ConsumerState<MainShell> {
         ) ??
         0;
 
+    // Chat unread count
+    final chatUnread = ref.watch(chatBadgeProvider);
+
+    // Notification unread count
+    final notifState = ref.watch(notificationProvider);
+    final notifUnread = notifState.unreadCount;
+
+    // Build badges map: index → count
+    final badges = <int, int>{};
+    if (chatUnread > 0) badges[1] = chatUnread;
+    if (notifUnread > 0) badges[2] = notifUnread;
+    if (readyCount > 0) badges[3] = readyCount;
+
     return Scaffold(
       body: PopScope(
         canPop: false,
@@ -304,7 +333,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                 if (uid == myId) {
                   setState(() {
                     _tabHistory.add(_currentIndex);
-                    _currentIndex = 3;
+                    _currentIndex = 4;
                   });
                 } else {
                   Navigator.pushNamed(context, '/user-profile', arguments: uid);
@@ -319,6 +348,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                 arguments: {'userId': userId, 'name': name},
               ),
             ),
+            const NotificationScreen(),
             CapsuleListScreen(
               onCreateCapsule: () async {
                 final result = await Navigator.pushNamed(
@@ -336,7 +366,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         currentIndex: _currentIndex,
         items: _navItems,
         onTap: _onTabTap,
-        badges: readyCount > 0 ? {2: readyCount} : const {},
+        badges: badges,
         onCameraTap: _handleCameraTap,
         onGalleryTap: _handleGalleryTap,
         onTextPostTap: _handleTextPostTap,

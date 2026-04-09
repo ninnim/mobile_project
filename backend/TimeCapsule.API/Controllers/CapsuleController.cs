@@ -12,7 +12,12 @@ namespace TimeCapsule.API.Controllers;
 public class CapsuleController : ControllerBase
 {
     private readonly ICapsuleService _capsules;
-    public CapsuleController(ICapsuleService capsules) { _capsules = capsules; }
+    private readonly INotificationService _notifications;
+    public CapsuleController(ICapsuleService capsules, INotificationService notifications)
+    {
+        _capsules = capsules;
+        _notifications = notifications;
+    }
 
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
@@ -43,7 +48,21 @@ public class CapsuleController : ControllerBase
     public async Task<IActionResult> Unlock(Guid id, [FromBody] UnlockCapsuleDto dto)
     {
         if (!ModelState.IsValid) return BadRequest(new { error = "Invalid coordinates." });
-        try { return Ok(await _capsules.UnlockAsync(id, UserId, dto)); }
+        try
+        {
+            var result = await _capsules.UnlockAsync(id, UserId, dto);
+            // Notify the capsule sender when someone unlocks their capsule
+            if (result.Success && result.Capsule != null && result.Capsule.SenderId != UserId)
+            {
+                await _notifications.CreateNotificationAsync(
+                    result.Capsule.SenderId,
+                    UserId,
+                    "CapsuleUnlocked",
+                    $"unlocked your capsule \"{result.Capsule.Title}\"",
+                    id);
+            }
+            return Ok(result);
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
 

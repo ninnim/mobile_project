@@ -48,7 +48,9 @@ class SavedProfile {
 }
 
 class SecureStorage {
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
   static const _tokenKey = 'jwt_token';
   static const _profilesKey = 'saved_profiles';
 

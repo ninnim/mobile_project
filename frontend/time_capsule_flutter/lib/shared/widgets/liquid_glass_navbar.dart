@@ -13,7 +13,9 @@ class NavItem {
 
 /// Glass-morphism bottom navigation bar with a center camera FAB.
 ///
-/// Expects exactly 4 [items] arranged as: left-1 | left-2 | FAB | right-1 | right-2.
+/// Supports 4 or 5 [items] arranged around a center FAB.
+/// For 4 items: left-1 | left-2 | FAB | right-1 | right-2.
+/// For 5 items: left-1 | left-2 | FAB | right-1 | right-2 | right-3 (compact).
 /// Tapping the FAB triggers [onCameraTap]. Long-pressing reveals
 /// a floating menu with [onGalleryTap] and [onTextPostTap] options.
 class LiquidGlassNavBar extends StatefulWidget {
@@ -192,7 +194,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
             children: [
               for (var i = 0; i < 2; i++) _navItem(i, scheme, isDark),
               SizedBox(width: _fabSize + 28),
-              for (var i = 2; i < widget.items.length.clamp(0, 4); i++)
+              for (var i = 2; i < widget.items.length; i++)
                 _navItem(i, scheme, isDark),
             ],
           ),

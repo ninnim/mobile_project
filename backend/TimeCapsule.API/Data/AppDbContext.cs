@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
     public DbSet<ProfileReaction> ProfileReactions => Set<ProfileReaction>();
     public DbSet<ChatReaction> ChatReactions => Set<ChatReaction>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -141,5 +142,12 @@ public class AppDbContext : DbContext
             .HasOne(cr => cr.Chat).WithMany(c => c.Reactions).HasForeignKey(cr => cr.ChatId).OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<ChatReaction>()
             .HasOne(cr => cr.User).WithMany().HasForeignKey(cr => cr.UserId).OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.User).WithMany().HasForeignKey(n => n.UserId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.Actor).WithMany().HasForeignKey(n => n.ActorId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Notification>()
+            .HasIndex(n => new { n.UserId, n.CreatedAt });
     }
 }

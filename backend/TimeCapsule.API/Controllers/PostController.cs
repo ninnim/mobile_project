@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TimeCapsule.API.Data;
 using TimeCapsule.API.DTOs.Post;
 using TimeCapsule.API.Services;
 
@@ -12,7 +14,14 @@ namespace TimeCapsule.API.Controllers;
 public class PostController : ControllerBase
 {
     private readonly IPostService _posts;
-    public PostController(IPostService posts) { _posts = posts; }
+    private readonly INotificationService _notifications;
+    private readonly AppDbContext _db;
+    public PostController(IPostService posts, INotificationService notifications, AppDbContext db)
+    {
+        _posts = posts;
+        _notifications = notifications;
+        _db = db;
+    }
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpPost]
@@ -74,6 +83,10 @@ public class PostController : ControllerBase
         try
         {
             var type = await _posts.ReactAsync(id, UserId, dto.ReactionType);
+            // Notify post owner
+            var post = await _db.Posts.FindAsync(id);
+            if (post != null)
+                await _notifications.CreateNotificationAsync(post.UserId, UserId, "PostReaction", $"reacted {dto.ReactionType} to your post", id);
             return Ok(new { reactionType = type });
         }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
@@ -95,7 +108,15 @@ public class PostController : ControllerBase
     public async Task<IActionResult> AddComment(Guid id, [FromBody] CreateCommentDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Content)) return BadRequest(new { error = "Comment cannot be empty." });
-        try { return StatusCode(201, await _posts.AddCommentAsync(id, UserId, dto)); }
+        try
+        {
+            var comment = await _posts.AddCommentAsync(id, UserId, dto);
+            // Notify post owner
+            var post = await _db.Posts.FindAsync(id);
+            if (post != null)
+                await _notifications.CreateNotificationAsync(post.UserId, UserId, "PostComment", "commented on your post", id);
+            return StatusCode(201, comment);
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
 
@@ -111,6 +132,10 @@ public class PostController : ControllerBase
         try
         {
             var type = await _posts.ReactToCommentAsync(commentId, UserId, dto.ReactionType);
+            // Notify comment owner
+            var comment = await _db.PostComments.FindAsync(commentId);
+            if (comment != null)
+                await _notifications.CreateNotificationAsync(comment.UserId, UserId, "CommentReaction", $"reacted {dto.ReactionType} to your comment", id);
             return Ok(new { reactionType = type });
         }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }

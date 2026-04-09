@@ -11,7 +11,12 @@ namespace TimeCapsule.API.Controllers;
 public class FriendshipController : ControllerBase
 {
     private readonly IFriendshipService _service;
-    public FriendshipController(IFriendshipService service) { _service = service; }
+    private readonly INotificationService _notifications;
+    public FriendshipController(IFriendshipService service, INotificationService notifications)
+    {
+        _service = service;
+        _notifications = notifications;
+    }
     private Guid UserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
@@ -29,7 +34,12 @@ public class FriendshipController : ControllerBase
     [HttpPost("request/{userId:guid}")]
     public async Task<IActionResult> SendRequest(Guid userId)
     {
-        try { return StatusCode(201, await _service.SendFriendRequestAsync(UserId, userId)); }
+        try
+        {
+            var result = StatusCode(201, await _service.SendFriendRequestAsync(UserId, userId));
+            await _notifications.CreateNotificationAsync(userId, UserId, "FriendRequest", "sent you a friend request");
+            return result;
+        }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
@@ -37,7 +47,12 @@ public class FriendshipController : ControllerBase
     [HttpPut("accept/{requesterId:guid}")]
     public async Task<IActionResult> Accept(Guid requesterId)
     {
-        try { return Ok(await _service.AcceptFriendRequestAsync(UserId, requesterId)); }
+        try
+        {
+            var result = Ok(await _service.AcceptFriendRequestAsync(UserId, requesterId));
+            await _notifications.CreateNotificationAsync(requesterId, UserId, "FriendAccepted", "accepted your friend request");
+            return result;
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
 

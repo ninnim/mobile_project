@@ -87,6 +87,7 @@ builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<IGameRoomService, GameRoomService>();
 builder.Services.AddScoped<ITripAnalyzerService, TripAnalyzerService>();
 builder.Services.AddScoped<IFriendshipService, FriendshipService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddSingleton<IFileUploadService, FileUploadService>();
 builder.Services.AddSingleton<IFcmNotificationService, FcmNotificationService>();
 

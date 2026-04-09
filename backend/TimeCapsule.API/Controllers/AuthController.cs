@@ -15,12 +15,14 @@ public class AuthController : ControllerBase
     private readonly IAuthService _auth;
     private readonly ILogger<AuthController> _logger;
     private readonly AppDbContext _db;
+    private readonly INotificationService _notifications;
 
-    public AuthController(IAuthService auth, ILogger<AuthController> logger, AppDbContext db)
+    public AuthController(IAuthService auth, ILogger<AuthController> logger, AppDbContext db, INotificationService notifications)
     {
         _auth = auth;
         _logger = logger;
         _db = db;
+        _notifications = notifications;
     }
 
     [HttpPost("register")]
@@ -175,6 +177,19 @@ public class AuthController : ControllerBase
             });
         }
         await _db.SaveChangesAsync();
+
+        // Notify profile owner about the reaction
+        var reactor = await _db.Users.FindAsync(reactorId);
+        var emojiMap = new Dictionary<string, string>
+        {
+            ["like"] = "\ud83d\udc4d", ["love"] = "\u2764\ufe0f", ["haha"] = "\ud83d\ude02",
+            ["wow"] = "\ud83d\ude2e", ["sad"] = "\ud83d\ude22", ["angry"] = "\ud83d\ude21"
+        };
+        var emoji = emojiMap.GetValueOrDefault(dto.ReactionType.ToLowerInvariant(), "\ud83d\udc4d");
+        await _notifications.CreateNotificationAsync(
+            profileUserId, reactorId, "ProfileReaction",
+            $"reacted {emoji} to your profile", profileUserId);
+
         return Ok(new { reactionType = dto.ReactionType.ToLowerInvariant() });
     }
 

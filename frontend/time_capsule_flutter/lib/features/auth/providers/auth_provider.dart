@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -352,6 +353,36 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   String _extractError(dynamic e) {
+    // Handle DioException specifically for better release-mode diagnostics
+    if (e is DioException) {
+      // Try to extract backend error message from response body
+      final data = e.response?.data;
+      if (data is Map && data['error'] != null) return data['error'] as String;
+
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+          return 'Connection timed out. Server may be starting up — please try again in a moment.';
+        case DioExceptionType.sendTimeout:
+          return 'Request timed out while sending. Check your internet connection.';
+        case DioExceptionType.receiveTimeout:
+          return 'Server took too long to respond. Please try again.';
+        case DioExceptionType.badCertificate:
+          return 'SSL certificate error. Please update the app or try again later.';
+        case DioExceptionType.connectionError:
+          return 'Cannot connect to server. Check your internet connection.';
+        case DioExceptionType.cancel:
+          return 'Request was cancelled.';
+        case DioExceptionType.badResponse:
+          final statusCode = e.response?.statusCode;
+          return 'Server error ($statusCode). Please try again.';
+        case DioExceptionType.unknown:
+          if (e.error.toString().contains('SocketException') ||
+              e.error.toString().contains('Connection refused')) {
+            return 'Cannot connect to server. Please try again.';
+          }
+          return 'Network error. Please check your connection and try again.';
+      }
+    }
     try {
       final data = (e as dynamic).response?.data;
       if (data is Map && data['error'] != null) return data['error'] as String;
@@ -363,14 +394,13 @@ class AuthNotifier extends Notifier<AuthState> {
       if (msg.contains('network_error'))
         return 'Network error. Check your internet connection.';
       if (msg.contains('ApiException: 10') || msg.contains('DEVELOPER_ERROR')) {
-        return 'Google Sign-In config error (code 10). Create an Android OAuth client in Google Cloud Console.';
+        return 'Google Sign-In config error (code 10). The release signing key is not registered in Google Cloud Console.';
       }
       if (msg.contains('sign_in_failed')) {
         final m = RegExp(r'ApiException:\s*(\d+)').firstMatch(msg);
         final code = m?.group(1) ?? '?';
         return 'Google sign-in failed (error $code). Check Cloud Console setup.';
       }
-      // Show the platform error detail
       final m = RegExp(
         r'PlatformException\(([^,]+),\s*(.+?)(?:,|\))',
       ).firstMatch(msg);
@@ -379,7 +409,7 @@ class AuthNotifier extends Notifier<AuthState> {
     if (msg.contains('SocketException') || msg.contains('Connection refused')) {
       return 'Cannot connect to server. Please try again.';
     }
-    return 'Something went wrong';
+    return 'Something went wrong. Please try again.';
   }
 }
 
