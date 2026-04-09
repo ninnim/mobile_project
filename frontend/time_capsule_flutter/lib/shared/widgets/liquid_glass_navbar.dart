@@ -7,8 +7,11 @@ class NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const NavItem(
-      {required this.icon, required this.activeIcon, required this.label});
+  const NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
 }
 
 /// Glass-morphism bottom navigation bar with a center camera FAB.
@@ -172,8 +175,9 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
           height: h,
           padding: EdgeInsets.only(bottom: safePad),
           decoration: BoxDecoration(
-            color:
-                isDark ? const Color(0xDD0B0D21) : Colors.white.withAlpha(230),
+            color: isDark
+                ? const Color(0xDD0B0D21)
+                : Colors.white.withAlpha(230),
             borderRadius: BorderRadius.circular(28),
             border: Border.all(
               color: isDark
@@ -183,8 +187,7 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
             ),
             boxShadow: [
               BoxShadow(
-                color:
-                    (isDark ? scheme.primary : Colors.black).withAlpha(12),
+                color: (isDark ? scheme.primary : Colors.black).withAlpha(12),
                 blurRadius: 20,
                 offset: const Offset(0, -2),
               ),
@@ -211,8 +214,9 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
       height: 32,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xDD0B0D21) : Colors.white.withAlpha(230),
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular((_fabSize + 26) / 2)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular((_fabSize + 26) / 2),
+        ),
       ),
     );
   }
@@ -247,14 +251,17 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
                     color: active
                         ? scheme.primary
                         : (isDark
-                            ? Colors.white.withAlpha(100)
-                            : Colors.grey.withAlpha(160)),
+                              ? Colors.white.withAlpha(100)
+                              : Colors.grey.withAlpha(160)),
                     size: 24,
                   ),
                 ),
                 if (badge > 0)
                   Positioned(
-                      top: -5, right: -8, child: _badge(badge, scheme, isDark)),
+                    top: -5,
+                    right: -8,
+                    child: _badge(badge, scheme, isDark),
+                  ),
               ],
             ),
             AnimatedContainer(
@@ -269,7 +276,9 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
                 boxShadow: active
                     ? [
                         BoxShadow(
-                            color: scheme.primary.withAlpha(100), blurRadius: 6)
+                          color: scheme.primary.withAlpha(100),
+                          blurRadius: 6,
+                        ),
                       ]
                     : [],
               ),
@@ -287,17 +296,19 @@ class _LiquidGlassNavBarState extends State<LiquidGlassNavBar>
         color: scheme.error,
         shape: BoxShape.circle,
         border: Border.all(
-            color: isDark ? const Color(0xFF0B0D21) : Colors.white,
-            width: 1.5),
+          color: isDark ? const Color(0xFF0B0D21) : Colors.white,
+          width: 1.5,
+        ),
       ),
       constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
       child: Text(
         count > 9 ? '9+' : '$count',
         style: const TextStyle(
-            color: Colors.white,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            height: 1),
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
         textAlign: TextAlign.center,
       ),
     );
@@ -413,9 +424,12 @@ class _CameraMenuOverlayState extends State<_CameraMenuOverlay>
   void _dismiss() {
     if (_dismissing) return;
     _dismissing = true;
-    _ctrl.reverse().whenComplete(() {
-      if (mounted) widget.onDismiss();
-    }).catchError((_) {});
+    _ctrl
+        .reverse()
+        .whenComplete(() {
+          if (mounted) widget.onDismiss();
+        })
+        .catchError((_) {});
   }
 
   @override
@@ -438,8 +452,7 @@ class _CameraMenuOverlayState extends State<_CameraMenuOverlay>
               child: Stack(
                 children: [
                   // Dim scrim
-                  Container(
-                      color: Colors.black.withAlpha((fade * 90).round())),
+                  Container(color: Colors.black.withAlpha((fade * 90).round())),
 
                   // Gallery (left-above FAB)
                   _menuItem(
@@ -489,8 +502,11 @@ class _CameraMenuOverlayState extends State<_CameraMenuOverlay>
     const size = 54.0;
 
     // Staggered spring per item
-    final interval =
-        Interval(index * 0.1, 0.7 + index * 0.1, curve: Curves.easeOutBack);
+    final interval = Interval(
+      index * 0.1,
+      0.7 + index * 0.1,
+      curve: Curves.easeOutBack,
+    );
     final spring = interval.transform(t.clamp(0.0, 1.0));
 
     final x = widget.fabCenter.dx - size / 2 + offset.dx * spring;
@@ -520,25 +536,33 @@ class _CameraMenuOverlayState extends State<_CameraMenuOverlay>
                         ? scheme.surface.withAlpha(240)
                         : Colors.white,
                     border: Border.all(
-                        color: scheme.primary.withAlpha(80), width: 1.5),
+                      color: scheme.primary.withAlpha(80),
+                      width: 1.5,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                          color: scheme.primary.withAlpha(40), blurRadius: 16),
+                        color: scheme.primary.withAlpha(40),
+                        blurRadius: 16,
+                      ),
                       BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2)),
+                        color: Colors.black.withAlpha(20),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
                     ],
                   ),
                   child: Icon(icon, color: scheme.primary, size: 24),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color:
-                        (isDark ? Colors.black : Colors.white).withAlpha(180),
+                    color: (isDark ? Colors.black : Colors.white).withAlpha(
+                      180,
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(

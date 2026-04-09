@@ -25,6 +25,13 @@ public class PostService : IPostService
         .Include(p => p.Reactions)
         .Include(p => p.SharedPost).ThenInclude(sp => sp!.User);
 
+    public async Task<PostResponseDto?> GetByIdAsync(Guid postId, Guid? currentUserId = null)
+    {
+        var post = await PostsWithIncludes().FirstOrDefaultAsync(p => p.Id == postId);
+        if (post == null) return null;
+        return MapToDto(post, post.User, currentUserId);
+    }
+
     public async Task<PostResponseDto> CreateAsync(Guid userId, CreatePostDto dto)
     {
         string? mediaUrl = null;

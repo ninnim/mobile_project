@@ -4,6 +4,7 @@ namespace TimeCapsule.API.Services;
 
 public interface IPostService
 {
+    Task<PostResponseDto?> GetByIdAsync(Guid postId, Guid? currentUserId = null);
     Task<PostResponseDto> CreateAsync(Guid userId, CreatePostDto dto);
     Task<PostResponseDto> UpdateAsync(Guid postId, Guid userId, UpdatePostDto dto);
     Task DeleteAsync(Guid postId, Guid userId);

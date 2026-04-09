@@ -19,11 +19,15 @@ class SignalRService {
   final _readController = StreamController<(String, List<String>)>.broadcast();
   final _reactionController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _notificationController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onMessage => _messageController.stream;
   Stream<(String, bool)> get onTyping => _typingController.stream;
   Stream<(String, List<String>)> get onMessagesRead => _readController.stream;
   Stream<Map<String, dynamic>> get onReaction => _reactionController.stream;
+  Stream<Map<String, dynamic>> get onNotification =>
+      _notificationController.stream;
 
   bool get isConnected =>
       _hub != null && _hub!.state == HubConnectionState.Connected;
@@ -33,7 +37,7 @@ class SignalRService {
     _isConnecting = true;
 
     try {
-      final token = await _storage.read(key: 'auth_token');
+      final token = await _storage.read(key: 'jwt_token');
       if (token == null) {
         _isConnecting = false;
         return;
@@ -78,6 +82,16 @@ class SignalRService {
         if (args != null && args.isNotEmpty) {
           final data = args[0] as Map<String, dynamic>?;
           if (data != null) _reactionController.add(data);
+        }
+      });
+
+      _hub!.on('ReceiveNotification', (args) {
+        if (args != null && args.isNotEmpty) {
+          final data = args[0] as Map<String, dynamic>?;
+          if (data != null) {
+            debugPrint('[SignalR] ReceiveNotification: ${data['type']}');
+            _notificationController.add(data);
+          }
         }
       });
 
@@ -159,6 +173,7 @@ class SignalRService {
     _typingController.close();
     _readController.close();
     _reactionController.close();
+    _notificationController.close();
     disconnect();
     _instance = null;
   }

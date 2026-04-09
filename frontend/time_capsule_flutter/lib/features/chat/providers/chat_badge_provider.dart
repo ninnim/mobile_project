@@ -2,17 +2,31 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/services/signalr_service.dart';
 import '../models/chat_message.dart';
 
 class ChatBadgeNotifier extends Notifier<int> {
-  Timer? _timer;
+  StreamSubscription? _messageSub;
+  StreamSubscription? _notifSub;
 
   @override
   int build() {
-    ref.onDispose(() => _timer?.cancel());
+    _listenToSignalR();
+    ref.onDispose(() {
+      _messageSub?.cancel();
+      _notifSub?.cancel();
+    });
     _fetchUnreadCount();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _fetchUnreadCount());
     return 0;
+  }
+
+  void _listenToSignalR() {
+    // Listen for incoming chat messages — bump badge
+    _messageSub?.cancel();
+    _messageSub = SignalRService.instance.onMessage.listen((_) {
+      debugPrint('[ChatBadge] New message received via SignalR');
+      _fetchUnreadCount();
+    });
   }
 
   Future<void> _fetchUnreadCount() async {
@@ -31,4 +45,6 @@ class ChatBadgeNotifier extends Notifier<int> {
   void refresh() => _fetchUnreadCount();
 }
 
-final chatBadgeProvider = NotifierProvider<ChatBadgeNotifier, int>(ChatBadgeNotifier.new);
+final chatBadgeProvider = NotifierProvider<ChatBadgeNotifier, int>(
+  ChatBadgeNotifier.new,
+);

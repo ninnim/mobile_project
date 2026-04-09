@@ -38,15 +38,15 @@ class NotificationModel {
       );
 
   NotificationModel copyWith({bool? isRead}) => NotificationModel(
-        id: id,
-        userId: userId,
-        actorId: actorId,
-        actorName: actorName,
-        actorProfilePictureUrl: actorProfilePictureUrl,
-        type: type,
-        referenceId: referenceId,
-        message: message,
-        isRead: isRead ?? this.isRead,
-        createdAt: createdAt,
-      );
+    id: id,
+    userId: userId,
+    actorId: actorId,
+    actorName: actorName,
+    actorProfilePictureUrl: actorProfilePictureUrl,
+    type: type,
+    referenceId: referenceId,
+    message: message,
+    isRead: isRead ?? this.isRead,
+    createdAt: createdAt,
+  );
 }

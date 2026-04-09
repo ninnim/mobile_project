@@ -32,7 +32,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
   }
 
   void _onScroll() {
-    if (_scrollCtrl.position.pixels > _scrollCtrl.position.maxScrollExtent - 200) {
+    if (_scrollCtrl.position.pixels >
+        _scrollCtrl.position.maxScrollExtent - 200) {
       ref.read(notificationProvider.notifier).loadMore();
     }
   }
@@ -59,21 +60,25 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                 if (state.unreadCount > 0) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withAlpha(30),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${state.unreadCount}',
-                      style: TextStyle(
-                        color: scheme.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ).animate(onPlay: (c) => c.repeat(reverse: true))
-                    .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withAlpha(30),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${state.unreadCount}',
+                          style: TextStyle(
+                            color: scheme.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms),
                 ],
               ],
             ),
@@ -100,7 +105,11 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Row(
                       children: [
-                        const SkeletonBox(width: 48, height: 48, borderRadius: 24),
+                        const SkeletonBox(
+                          width: 48,
+                          height: 48,
+                          borderRadius: 24,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
@@ -125,12 +134,20 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.error_outline_rounded, size: 64, color: scheme.error.withAlpha(150)),
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 64,
+                      color: scheme.error.withAlpha(150),
+                    ),
                     const SizedBox(height: 16),
-                    Text(state.error!, style: Theme.of(context).textTheme.bodyLarge),
+                    Text(
+                      state.error!,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                     const SizedBox(height: 16),
                     FilledButton.icon(
-                      onPressed: () => ref.read(notificationProvider.notifier).refresh(),
+                      onPressed: () =>
+                          ref.read(notificationProvider.notifier).refresh(),
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('Retry'),
                     ),
@@ -143,7 +160,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
               child: EmptyState(
                 icon: Icons.notifications_none_rounded,
                 title: "You're all caught up!",
-                subtitle: 'No notifications yet. Interact with friends to see activity here.',
+                subtitle:
+                    'No notifications yet. Interact with friends to see activity here.',
               ),
             )
           else
@@ -154,7 +172,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                     if (state.loadingMore) {
                       return const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       );
                     }
                     return const SizedBox.shrink();
@@ -166,7 +186,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                     onTap: () => _onNotificationTap(notification),
                     onDismiss: () {
                       HapticFeedback.lightImpact();
-                      ref.read(notificationProvider.notifier).deleteNotification(notification.id);
+                      ref
+                          .read(notificationProvider.notifier)
+                          .deleteNotification(notification.id);
                     },
                     onAcceptFriend: notification.type == 'FriendRequest'
                         ? () => _handleFriendAction(notification, true)
@@ -176,7 +198,8 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                         : null,
                   );
                 },
-                childCount: state.notifications.length + (state.loadingMore ? 1 : 0),
+                childCount:
+                    state.notifications.length + (state.loadingMore ? 1 : 0),
               ),
             ),
         ],
@@ -191,23 +214,56 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     switch (notification.type) {
       case 'FriendRequest':
       case 'FriendAccepted':
-        Navigator.pushNamed(context, '/user-profile', arguments: notification.actorId);
+        Navigator.pushNamed(
+          context,
+          '/user-profile',
+          arguments: notification.actorId,
+        );
         break;
       case 'PostReaction':
       case 'PostComment':
       case 'CommentReaction':
-        // Navigate to actor's profile (post detail screen not yet implemented)
         if (notification.referenceId != null) {
-          Navigator.pushNamed(context, '/user-profile', arguments: notification.actorId);
+          Navigator.pushNamed(
+            context,
+            '/post-detail',
+            arguments: notification.referenceId,
+          );
+        }
+        break;
+      case 'ChatMessage':
+        Navigator.pushNamed(
+          context,
+          '/chat',
+          arguments: {
+            'userId': notification.actorId,
+            'name': notification.actorName,
+          },
+        );
+        break;
+      case 'CapsuleUnlocked':
+        if (notification.referenceId != null) {
+          Navigator.pushNamed(
+            context,
+            '/user-profile',
+            arguments: notification.actorId,
+          );
         }
         break;
       case 'ProfileReaction':
-        Navigator.pushNamed(context, '/user-profile', arguments: notification.actorId);
+        Navigator.pushNamed(
+          context,
+          '/user-profile',
+          arguments: notification.actorId,
+        );
         break;
     }
   }
 
-  Future<void> _handleFriendAction(NotificationModel notification, bool accept) async {
+  Future<void> _handleFriendAction(
+    NotificationModel notification,
+    bool accept,
+  ) async {
     HapticFeedback.mediumImpact();
     try {
       if (accept) {
@@ -215,7 +271,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('You and ${notification.actorName} are now friends!'),
+              content: Text(
+                'You and ${notification.actorName} are now friends!',
+              ),
               backgroundColor: Theme.of(context).colorScheme.primary,
               behavior: SnackBarBehavior.floating,
             ),
@@ -225,7 +283,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
         await dioClient.delete('/friends/decline/${notification.actorId}');
       }
       ref.read(notificationProvider.notifier).markAsRead(notification.id);
-      ref.read(notificationProvider.notifier).deleteNotification(notification.id);
+      ref
+          .read(notificationProvider.notifier)
+          .deleteNotification(notification.id);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -266,173 +326,200 @@ class _NotificationTile extends StatelessWidget {
     final typeInfo = _getTypeInfo(notification.type, scheme);
 
     return Dismissible(
-      key: Key(notification.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: scheme.error.withAlpha(40),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Icon(Icons.delete_rounded, color: scheme.error),
-      ),
-      onDismissed: (_) => onDismiss(),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: notification.isRead
-                ? (isDark ? Colors.white.withAlpha(5) : Colors.grey.withAlpha(10))
-                : scheme.primary.withAlpha(isDark ? 18 : 15),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: notification.isRead
-                  ? Colors.transparent
-                  : scheme.primary.withAlpha(40),
-              width: 1,
+          key: Key(notification.id),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: scheme.error.withAlpha(40),
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Icon(Icons.delete_rounded, color: scheme.error),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Avatar with type icon overlay ──
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: scheme.primary.withAlpha(30),
-                    backgroundImage: notification.actorProfilePictureUrl != null
-                        ? NetworkImage(
-                            notification.actorProfilePictureUrl!.startsWith('http')
-                                ? notification.actorProfilePictureUrl!
-                                : '${ApiConstants.uploadsBase}/${notification.actorProfilePictureUrl}',
-                          )
-                        : null,
-                    child: notification.actorProfilePictureUrl == null
-                        ? Text(
-                            notification.actorName.isNotEmpty
-                                ? notification.actorName[0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          )
-                        : null,
-                  ),
-                  Positioned(
-                    bottom: -2,
-                    right: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: typeInfo.color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF0B0D21) : Colors.white,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(typeInfo.icon, color: Colors.white, size: 10),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 12),
-              // ── Content ──
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        children: [
-                          TextSpan(
-                            text: notification.actorName,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          TextSpan(text: ' ${notification.message}'),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatTime(notification.createdAt),
-                      style: TextStyle(
-                        color: notification.isRead
-                            ? (isDark ? Colors.white38 : Colors.grey)
-                            : scheme.primary,
-                        fontSize: 12,
-                        fontWeight: notification.isRead ? FontWeight.normal : FontWeight.w600,
-                      ),
-                    ),
-                    // ── Friend request actions ──
-                    if (notification.type == 'FriendRequest' && onAcceptFriend != null) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ActionButton(
-                              label: 'Confirm',
-                              color: scheme.primary,
-                              textColor: isDark ? const Color(0xFF0B0D21) : Colors.white,
-                              onTap: onAcceptFriend!,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _ActionButton(
-                              label: 'Delete',
-                              color: isDark ? Colors.white.withAlpha(20) : Colors.grey.withAlpha(40),
-                              textColor: isDark ? Colors.white70 : Colors.black87,
-                              onTap: onRejectFriend!,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+          onDismissed: (_) => onDismiss(),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: notification.isRead
+                    ? (isDark
+                          ? Colors.white.withAlpha(5)
+                          : Colors.grey.withAlpha(10))
+                    : scheme.primary.withAlpha(isDark ? 18 : 15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: notification.isRead
+                      ? Colors.transparent
+                      : scheme.primary.withAlpha(40),
+                  width: 1,
                 ),
               ),
-              // ── Unread dot ──
-              if (!notification.isRead) ...[
-                const SizedBox(width: 8),
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: scheme.primary.withAlpha(100),
-                        blurRadius: 6,
-                        spreadRadius: 1,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Avatar with type icon overlay ──
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: scheme.primary.withAlpha(30),
+                        backgroundImage:
+                            notification.actorProfilePictureUrl != null
+                            ? NetworkImage(
+                                notification.actorProfilePictureUrl!.startsWith(
+                                      'http',
+                                    )
+                                    ? notification.actorProfilePictureUrl!
+                                    : '${ApiConstants.uploadsBase}/${notification.actorProfilePictureUrl}',
+                              )
+                            : null,
+                        child: notification.actorProfilePictureUrl == null
+                            ? Text(
+                                notification.actorName.isNotEmpty
+                                    ? notification.actorName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                ),
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: -2,
+                        right: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: typeInfo.color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF0B0D21)
+                                  : Colors.white,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            typeInfo.icon,
+                            color: Colors.white,
+                            size: 10,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                )
-                    .animate(onPlay: (c) => c.repeat(reverse: true))
-                    .scaleXY(begin: 0.8, end: 1.2, duration: 1200.ms),
-              ],
-            ],
+                  const SizedBox(width: 12),
+                  // ── Content ──
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            children: [
+                              TextSpan(
+                                text: notification.actorName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              TextSpan(text: ' ${notification.message}'),
+                            ],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatTime(notification.createdAt),
+                          style: TextStyle(
+                            color: notification.isRead
+                                ? (isDark ? Colors.white38 : Colors.grey)
+                                : scheme.primary,
+                            fontSize: 12,
+                            fontWeight: notification.isRead
+                                ? FontWeight.normal
+                                : FontWeight.w600,
+                          ),
+                        ),
+                        // ── Friend request actions ──
+                        if (notification.type == 'FriendRequest' &&
+                            onAcceptFriend != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ActionButton(
+                                  label: 'Confirm',
+                                  color: scheme.primary,
+                                  textColor: isDark
+                                      ? const Color(0xFF0B0D21)
+                                      : Colors.white,
+                                  onTap: onAcceptFriend!,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _ActionButton(
+                                  label: 'Delete',
+                                  color: isDark
+                                      ? Colors.white.withAlpha(20)
+                                      : Colors.grey.withAlpha(40),
+                                  textColor: isDark
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                  onTap: onRejectFriend!,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  // ── Unread dot ──
+                  if (!notification.isRead) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: scheme.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: scheme.primary.withAlpha(100),
+                                blurRadius: 6,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        )
+                        .animate(onPlay: (c) => c.repeat(reverse: true))
+                        .scaleXY(begin: 0.8, end: 1.2, duration: 1200.ms),
+                  ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
-    )
+        )
         .animate()
         .fadeIn(delay: (50 * index.clamp(0, 15)).ms, duration: 300.ms)
-        .slideX(begin: 0.05, end: 0, duration: 300.ms, curve: Curves.easeOutCubic);
+        .slideX(
+          begin: 0.05,
+          end: 0,
+          duration: 300.ms,
+          curve: Curves.easeOutCubic,
+        );
   }
 
   static _TypeInfo _getTypeInfo(String type, ColorScheme scheme) {

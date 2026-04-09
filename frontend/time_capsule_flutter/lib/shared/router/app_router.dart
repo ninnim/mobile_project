@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../features/profile/screens/user_profile_screen.dart';
 import '../../features/profile/screens/settings_screen.dart';
 import '../../features/feed/screens/create_post_screen.dart';
+import '../../features/feed/screens/post_detail_screen.dart';
 import '../../features/capsule/screens/create_capsule_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/gameroom/screens/gameroom_detail_screen.dart';
@@ -20,6 +21,11 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) =>
               CreatePostScreen(initialImagePath: args?['imagePath'] as String?),
+        );
+      case '/post-detail':
+        final postId = settings.arguments as String;
+        return MaterialPageRoute(
+          builder: (_) => PostDetailScreen(postId: postId),
         );
       case '/create-capsule':
         return MaterialPageRoute(

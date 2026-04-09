@@ -61,6 +61,14 @@ public class PostController : ControllerBase
     public async Task<IActionResult> GetByUser(Guid userId)
         => Ok(await _posts.GetByUserAsync(userId, UserId));
 
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        var post = await _posts.GetByIdAsync(id, UserId);
+        if (post == null) return NotFound(new { error = "Post not found." });
+        return Ok(post);
+    }
+
     [HttpPost("{id:guid}/like")]
     public async Task<IActionResult> Like(Guid id)
     {

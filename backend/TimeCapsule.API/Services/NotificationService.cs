@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using TimeCapsule.API.Data;
+using TimeCapsule.API.Hubs;
 using TimeCapsule.API.Models;
 
 namespace TimeCapsule.API.Services;
@@ -8,11 +10,13 @@ public class NotificationService : INotificationService
 {
     private readonly AppDbContext _db;
     private readonly ILogger<NotificationService> _logger;
+    private readonly IHubContext<ChatHub> _hub;
 
-    public NotificationService(AppDbContext db, ILogger<NotificationService> logger)
+    public NotificationService(AppDbContext db, ILogger<NotificationService> logger, IHubContext<ChatHub> hub)
     {
         _db = db;
         _logger = logger;
+        _hub = hub;
     }
 
     public async Task<List<NotificationDto>> GetNotificationsAsync(Guid userId, int page, int pageSize)
@@ -87,6 +91,37 @@ public class NotificationService : INotificationService
         _db.Notifications.Add(notification);
         await _db.SaveChangesAsync();
         _logger.LogInformation("Notification created: {Type} for user {UserId} from {ActorId}", type, userId, actorId);
+
+        // Push real-time notification via SignalR
+        try
+        {
+            var actor = await _db.Users.FindAsync(actorId);
+            var dto = new NotificationDto
+            {
+                Id = notification.Id,
+                UserId = userId,
+                ActorId = actorId,
+                ActorName = actor?.DisplayName ?? "",
+                ActorProfilePictureUrl = actor?.ProfilePictureUrl,
+                Type = type,
+                ReferenceId = referenceId,
+                Message = message,
+                IsRead = false,
+                CreatedAt = notification.CreatedAt,
+            };
+            if (ChatHub.IsUserOnline(userId.ToString()))
+            {
+                var connIds = ChatHub.GetConnectionIds(userId.ToString());
+                foreach (var connId in connIds)
+                {
+                    await _hub.Clients.Client(connId).SendAsync("ReceiveNotification", dto);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to push real-time notification to {UserId}", userId);
+        }
     }
 
     public async Task DeleteNotificationAsync(Guid userId, Guid notificationId)

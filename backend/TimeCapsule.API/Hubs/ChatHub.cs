@@ -126,4 +126,13 @@ public class ChatHub : Hub
 
     public static bool IsUserOnline(string userId)
         => _userConnections.ContainsKey(userId) && _userConnections[userId].Count > 0;
+
+    public static HashSet<string> GetConnectionIds(string userId)
+    {
+        if (_userConnections.TryGetValue(userId, out var connections))
+        {
+            lock (connections) { return new HashSet<string>(connections); }
+        }
+        return new HashSet<string>();
+    }
 }
