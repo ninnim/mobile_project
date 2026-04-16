@@ -917,9 +917,12 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
     final screenWidth = MediaQuery.of(context).size.width;
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Position the picker above the button
-    final pickerWidth = 280.0;
-    final top = (widget.anchorOffset.dy - 100).clamp(40.0, double.infinity);
+    // Position the picker above the Like button.
+    // Picker height = label(22) + gap(4) + pill(52) + emoji jump space(36) = ~114
+    const pickerWidth = 280.0;
+    const pickerHeight = 114.0;
+    final top = (widget.anchorOffset.dy - pickerHeight - 8)
+        .clamp(40.0, double.infinity);
     final left =
         (widget.anchorOffset.dx + widget.anchorSize.width / 2 - pickerWidth / 2)
             .clamp(12.0, screenWidth - pickerWidth - 12.0);
@@ -968,74 +971,121 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
                 },
                 child: SizedBox(
                   width: pickerWidth,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
+                  // Total height: label area (22) + jump space (36) + pill (44)
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // ── Small pill background ──
-                      AnimatedBuilder(
-                        animation: _glowCtrl,
-                        builder: (_, __) {
-                          final glowVal = _glowCtrl.value;
-                          return Container(
-                            width: pickerWidth - 40,
-                            height: 44,
-                            margin: const EdgeInsets.only(top: 30),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(22),
-                              color: isDark
-                                  ? const Color(0xFF1A1D3D).withAlpha(220)
-                                  : Colors.white.withAlpha(230),
-                              border: Border.all(
-                                color: scheme.primary.withAlpha(
-                                  (40 + 20 * glowVal).round(),
-                                ),
-                                width: 1.5,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: scheme.primary.withAlpha(
-                                    (30 + 25 * glowVal).round(),
-                                  ),
-                                  blurRadius: 24,
-                                  spreadRadius: 2,
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(40),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
+                      // ── Shared hover label (appears above emoji row) ──
+                      SizedBox(
+                        height: 22,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 130),
+                          transitionBuilder: (child, anim) => FadeTransition(
+                            opacity: anim,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.4),
+                                end: Offset.zero,
+                              ).animate(anim),
+                              child: child,
                             ),
-                          );
-                        },
-                      ),
-                      // ── Emojis floating ABOVE the pill ──
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: List.generate(_reactions.length, (i) {
-                            return _EmojiItem3D(
-                              key: _emojiKeys[i],
-                              emoji: _emojis[i],
-                              label: _reactionLabels[_reactions[i]] ?? '',
-                              isHovered: _hoveredIndex == i,
-                              isSelected: _selectedIndex == i,
-                              index: i,
-                              entryAnimation: _entryCtrl,
-                              onTap: () => widget.onSelect(_reactions[i]),
-                              onHoverStart: () {
-                                HapticFeedback.selectionClick();
-                                setState(() => _hoveredIndex = i);
-                              },
-                              onHoverEnd: () =>
-                                  setState(() => _hoveredIndex = null),
-                            );
-                          }),
+                          ),
+                          child: _hoveredIndex != null
+                              ? Container(
+                                  key: ValueKey(_hoveredIndex),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withAlpha(220),
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: scheme.primary.withAlpha(60),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    _reactionLabels[_reactions[_hoveredIndex!]] ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                )
+                              : const SizedBox.shrink(key: ValueKey('none')),
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      // ── Pill + emojis ──
+                      Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          // Pill background
+                          AnimatedBuilder(
+                            animation: _glowCtrl,
+                            builder: (_, _) {
+                              final glowVal = _glowCtrl.value;
+                              return Container(
+                                width: pickerWidth - 40,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(26),
+                                  color: isDark
+                                      ? const Color(0xFF1A1D3D).withAlpha(230)
+                                      : Colors.white.withAlpha(240),
+                                  border: Border.all(
+                                    color: scheme.primary.withAlpha(
+                                        (40 + 20 * glowVal).round()),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: scheme.primary.withAlpha(
+                                          (30 + 25 * glowVal).round()),
+                                      blurRadius: 24,
+                                      spreadRadius: 2,
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.black.withAlpha(40),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          // Emojis row (they jump upward on hover via transform)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: List.generate(_reactions.length, (i) {
+                                return _EmojiItem3D(
+                                  key: _emojiKeys[i],
+                                  emoji: _emojis[i],
+                                  label: _reactionLabels[_reactions[i]] ?? '',
+                                  isHovered: _hoveredIndex == i,
+                                  isSelected: _selectedIndex == i,
+                                  index: i,
+                                  entryAnimation: _entryCtrl,
+                                  onTap: () => widget.onSelect(_reactions[i]),
+                                  onHoverStart: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _hoveredIndex = i);
+                                  },
+                                  onHoverEnd: () =>
+                                      setState(() => _hoveredIndex = null),
+                                );
+                              }),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1218,46 +1268,8 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
                   ),
                 ),
               ),
-              // Label — positioned above emoji, overflows freely
-              Positioned(
-                bottom: 36,
-                child: AnimatedOpacity(
-                  opacity: widget.isHovered ? 1.0 : 0.0,
-                  duration: const Duration(milliseconds: 120),
-                  child: AnimatedSlide(
-                    offset: Offset(0, widget.isHovered ? 0 : 0.4),
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOut,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.primary.withAlpha(220),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: scheme.primary.withAlpha(60),
-                            blurRadius: 10,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        widget.label,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              // Label is now rendered as a shared element in the picker
+              // container — removed from here to prevent overflow/floating.
             ],
           ),
         ),
