@@ -34,6 +34,7 @@ public class User
 
     public bool IsOnline { get; set; } = false;
     public DateTime LastSeen { get; set; } = DateTime.UtcNow;
+    public int PointsBalance { get; set; } = 150;
 
     public ICollection<Capsule> Capsules { get; set; } = new List<Capsule>();
     public ICollection<GameRoom> GameRooms { get; set; } = new List<GameRoom>();

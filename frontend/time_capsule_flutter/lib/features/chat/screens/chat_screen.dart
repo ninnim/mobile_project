@@ -613,6 +613,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 : ListView.builder(
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    physics: const BouncingScrollPhysics(),
+                    cacheExtent: 600,
+                    addRepaintBoundaries: false,
                     itemCount: chatState.messages.length,
                     itemBuilder: (ctx, i) {
                       final msg = chatState.messages[i];
@@ -623,24 +626,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             chatState.messages[i - 1].createdAt,
                             msg.createdAt,
                           );
-                      return Column(
-                        children: [
-                          if (showDate) _DateDivider(iso: msg.createdAt),
-                          _MessageBubble(
-                            msg: msg,
-                            isMine: isMine,
-                            playingId: _playingId,
-                            onPlayVoice: _playVoice,
-                            myId: _myId,
-                            onReact: (emoji) => ref
-                                .read(_chatProvider(_key).notifier)
-                                .reactToMessage(msg.id, emoji),
-                            onRemoveReaction: () => ref
-                                .read(_chatProvider(_key).notifier)
-                                .removeReaction(msg.id),
-                          ).animate().fadeIn(duration: 150.ms),
-                        ],
+                      // Only animate the very last message so new arrivals
+                      // fade in without triggering 30+ simultaneous animations
+                      // on initial load.
+                      final isNewest = i == chatState.messages.length - 1;
+                      final bubble = RepaintBoundary(
+                        child: Column(
+                          children: [
+                            if (showDate) _DateDivider(iso: msg.createdAt),
+                            _MessageBubble(
+                              msg: msg,
+                              isMine: isMine,
+                              playingId: _playingId,
+                              onPlayVoice: _playVoice,
+                              myId: _myId,
+                              onReact: (emoji) => ref
+                                  .read(_chatProvider(_key).notifier)
+                                  .reactToMessage(msg.id, emoji),
+                              onRemoveReaction: () => ref
+                                  .read(_chatProvider(_key).notifier)
+                                  .removeReaction(msg.id),
+                            ),
+                          ],
+                        ),
                       );
+                      if (isNewest) {
+                        return bubble.animate().fadeIn(duration: 150.ms);
+                      }
+                      return bubble;
                     },
                   ),
           ),

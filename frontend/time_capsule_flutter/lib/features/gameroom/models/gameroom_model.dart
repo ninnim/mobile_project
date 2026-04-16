@@ -7,6 +7,7 @@ class GameRoomModel {
   final String title;
   final bool isPublic;
   final int capsuleCount;
+  final int unlockedCount;
   final String createdAt;
   final List<CapsuleModel>? capsules;
 
@@ -17,6 +18,7 @@ class GameRoomModel {
     required this.title,
     required this.isPublic,
     required this.capsuleCount,
+    this.unlockedCount = 0,
     required this.createdAt,
     this.capsules,
   });
@@ -28,6 +30,7 @@ class GameRoomModel {
         title: j['title'] as String,
         isPublic: j['isPublic'] as bool? ?? true,
         capsuleCount: j['capsuleCount'] as int? ?? 0,
+        unlockedCount: j['unlockedCount'] as int? ?? 0,
         createdAt: j['createdAt'] as String,
         capsules: (j['capsules'] as List<dynamic>?)
             ?.map((e) => CapsuleModel.fromJson(e as Map<String, dynamic>))

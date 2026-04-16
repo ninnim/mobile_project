@@ -10,6 +10,7 @@ public class GameRoomResponseDto
     public string Title { get; set; } = string.Empty;
     public bool IsPublic { get; set; }
     public int CapsuleCount { get; set; }
+    public int UnlockedCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<CapsuleResponseDto>? Capsules { get; set; }
 }

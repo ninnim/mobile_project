@@ -93,6 +93,15 @@ builder.Services.AddSingleton<IFcmNotificationService, FcmNotificationService>()
 
 var app = builder.Build();
 
+// Ensure DB schema exists (creates tables if missing — safe for dev & first-run prod)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
+    // Idempotent column additions for schema evolution
+    db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""PointsBalance"" INTEGER NOT NULL DEFAULT 150;");
+}
+
 // Create uploads directory
 var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "uploads");
 Directory.CreateDirectory(uploadsPath);

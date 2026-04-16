@@ -162,6 +162,15 @@ public class CapsuleService : ICapsuleService
             await _db.SaveChangesAsync();
         }
 
+        // Credit points to the unlocker
+        if (capsule.PointsReward > 0)
+        {
+            await _db.Users
+                .Where(u => u.Id == userId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(u => u.PointsBalance, u => u.PointsBalance + capsule.PointsReward));
+        }
+
         return new UnlockResultDto
         {
             Success = true,

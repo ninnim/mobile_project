@@ -8,4 +8,5 @@ public interface IGameRoomService
     Task<List<GameRoomResponseDto>> GetPublicAsync();
     Task<GameRoomResponseDto> GetByIdAsync(Guid id);
     Task<List<GameRoomResponseDto>> GetMyAsync(Guid userId);
+    Task<bool> DeleteAsync(Guid id, Guid requesterId);
 }

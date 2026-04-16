@@ -69,10 +69,21 @@ public class GameRoomService : IGameRoomService
         return rooms.Select(r => MapToDto(r, r.Creator, null)).ToList();
     }
 
+    public async Task<bool> DeleteAsync(Guid id, Guid requesterId)
+    {
+        var room = await _db.GameRooms.FirstOrDefaultAsync(r => r.Id == id && r.CreatorId == requesterId);
+        if (room == null) return false;
+        _db.GameRooms.Remove(room);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     private static GameRoomResponseDto MapToDto(GameRoom r, User? creator, List<CapsuleResponseDto>? capsules) => new()
     {
         Id = r.Id, CreatorId = r.CreatorId, CreatorName = creator?.DisplayName ?? "",
-        Title = r.Title, IsPublic = r.IsPublic, CapsuleCount = r.Capsules?.Count ?? 0,
+        Title = r.Title, IsPublic = r.IsPublic,
+        CapsuleCount = r.Capsules?.Count ?? 0,
+        UnlockedCount = r.Capsules?.Count(c => c.Status == "Unlocked") ?? 0,
         CreatedAt = r.CreatedAt, Capsules = capsules
     };
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/post_model.dart';
 import '../providers/feed_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../main.dart' show mainTabProvider;
 import '../../../shared/widgets/avatar_widget.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/fullscreen_image_viewer.dart';
@@ -83,6 +84,12 @@ class _PostCardState extends ConsumerState<PostCard>
   bool get _isOwnPost => _currentUserId == widget.post.userId;
 
   void _navigateToUser(String userId) {
+    final myId = ref.read(authProvider).user?.id;
+    if (userId == myId) {
+      ref.read(mainTabProvider.notifier).state = 4;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      return;
+    }
     if (widget.onNavigateUser != null) {
       widget.onNavigateUser!(userId);
     } else {
@@ -344,6 +351,7 @@ class _PostCardState extends ConsumerState<PostCard>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: GlassCard(
+        blur: false,
         padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,6 +535,32 @@ class _PostCardState extends ConsumerState<PostCard>
                 ),
               ),
 
+            // ── Comment / share count row (Facebook style) ────────
+            if (post.commentCount > 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+                child: GestureDetector(
+                  onTap: _openComments,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline_rounded,
+                        size: 13,
+                        color: scheme.onSurface.withAlpha(100),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${post.commentCount} ${post.commentCount == 1 ? 'comment' : 'comments'}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurface.withAlpha(120),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // ── Divider ────────────────────────────────────────────
             Divider(
               height: 1,
@@ -654,6 +688,7 @@ class _ReactionSummary extends StatelessWidget {
             width: topEmojis.length * 18.0 + 8,
             height: 28,
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 for (int i = 0; i < topEmojis.length; i++)
                   Positioned(
@@ -713,33 +748,39 @@ class _ReactionSummary extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 2),
-          // Individual emoji counts
-          ...sorted
-              .take(3)
-              .map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _reactionEmojis[e.key] ?? '👍',
-                        style: const TextStyle(fontSize: 11),
+          // Individual emoji counts — wrapped in Flexible to prevent overflow
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: sorted
+                  .take(3)
+                  .map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _reactionEmojis[e.key] ?? '👍',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '${e.value}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: scheme.onSurface.withAlpha(120),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 2),
-                      Text(
-                        '${e.value}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: scheme.onSurface.withAlpha(120),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          const Spacer(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(width: 4),
           Icon(
             Icons.chevron_right_rounded,
             size: 16,
@@ -975,7 +1016,7 @@ class _ReactionPickerOverlayState extends State<_ReactionPickerOverlay>
                         left: 0,
                         right: 0,
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: List.generate(_reactions.length, (i) {
                             return _EmojiItem3D(
                               key: _emojiKeys[i],
@@ -1116,52 +1157,17 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOutBack,
                 alignment: Alignment.center,
-                child: SizedBox(width: 44, child: child),
+                // Fixed SizedBox ensures layout never changes,
+                // preventing Row overflow indicators.
+                child: SizedBox(width: 44, height: 44, child: child),
               ),
             );
           },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
             children: [
-              // Label — floating dark bubble above emoji
-              AnimatedOpacity(
-                opacity: widget.isHovered ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 120),
-                child: AnimatedSlide(
-                  offset: Offset(0, widget.isHovered ? 0 : 0.4),
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOut,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
-                    margin: const EdgeInsets.only(bottom: 4),
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withAlpha(220),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: scheme.primary.withAlpha(60),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      widget.label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // Emoji with glow ring when hovered
+              // Emoji — non-positioned child, determines Stack size
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 decoration: BoxDecoration(
@@ -1193,7 +1199,7 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
                   widget.emoji,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: widget.isHovered ? 36 : 28,
+                    fontSize: 28,
                     shadows: widget.isHovered
                         ? [
                             Shadow(
@@ -1209,6 +1215,46 @@ class _EmojiItem3DState extends State<_EmojiItem3D>
                               offset: const Offset(0, 1),
                             ),
                           ],
+                  ),
+                ),
+              ),
+              // Label — positioned above emoji, overflows freely
+              Positioned(
+                bottom: 36,
+                child: AnimatedOpacity(
+                  opacity: widget.isHovered ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 120),
+                  child: AnimatedSlide(
+                    offset: Offset(0, widget.isHovered ? 0 : 0.4),
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOut,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withAlpha(220),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: scheme.primary.withAlpha(60),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        widget.label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1957,6 +2003,8 @@ class _CommentsSheet extends ConsumerStatefulWidget {
 class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
   List<CommentModel> _comments = [];
   bool _loading = true;
+  String? _loadError;
+  String? _sendError;
   final _ctrl = TextEditingController();
   bool _sending = false;
 
@@ -1967,23 +2015,53 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
   }
 
   Future<void> _load() async {
-    final c = await ref.read(feedProvider.notifier).getComments(widget.postId);
-    if (mounted) {
+    if (mounted)
       setState(() {
-        _comments = c;
-        _loading = false;
+        _loadError = null;
+        _loading = true;
       });
+    try {
+      final c = await ref
+          .read(feedProvider.notifier)
+          .getComments(widget.postId);
+      if (mounted) {
+        setState(() {
+          _comments = c;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[Comments] load error: $e');
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadError = 'Could not load comments. Tap to retry.';
+        });
+      }
     }
   }
 
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-    setState(() => _sending = true);
-    await ref.read(feedProvider.notifier).addComment(widget.postId, text);
-    _ctrl.clear();
-    await _load();
-    setState(() => _sending = false);
+    setState(() {
+      _sending = true;
+      _sendError = null;
+    });
+    try {
+      await ref.read(feedProvider.notifier).addComment(widget.postId, text);
+      _ctrl.clear();
+      await _load();
+    } catch (e) {
+      debugPrint('[Comments] send error: $e');
+      if (mounted) {
+        setState(
+          () => _sendError = 'Failed to post comment. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   void _reactToComment(int index, String reactionType) {
@@ -2087,6 +2165,29 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
+                : _loadError != null
+                ? Center(
+                    child: GestureDetector(
+                      onTap: _load,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: scheme.error.withAlpha(160),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _loadError!,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: scheme.error),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
                 : _comments.isEmpty
                 ? Center(
                     child: Column(
@@ -2141,6 +2242,14 @@ class _CommentsSheetState extends ConsumerState<_CommentsSheet> {
                     },
                   ),
           ),
+          if (_sendError != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Text(
+                _sendError!,
+                style: TextStyle(color: scheme.error, fontSize: 12),
+              ),
+            ),
           Container(
             decoration: BoxDecoration(
               border: Border(

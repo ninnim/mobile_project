@@ -194,6 +194,9 @@ class _SplashScreen extends StatelessWidget {
   }
 }
 
+/// Provider to allow other screens to request a tab switch.
+final mainTabProvider = StateProvider<int?>((ref) => null);
+
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
@@ -201,9 +204,36 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
   final List<int> _tabHistory = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Eagerly fetch badge data on shell init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatBadgeProvider.notifier).refresh();
+      ref.read(notificationProvider.notifier).fetchUnreadCount();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh all badges when app comes back to foreground
+      ref.read(chatBadgeProvider.notifier).refresh();
+      ref.read(notificationProvider.notifier).fetchUnreadCount();
+    }
+  }
 
   static const _navItems = [
     NavItem(
@@ -288,6 +318,18 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for tab switch requests from other screens (e.g., PostDetailScreen)
+    ref.listen<int?>(mainTabProvider, (_, newTab) {
+      if (newTab != null) {
+        setState(() {
+          _tabHistory.add(_currentIndex);
+          _currentIndex = newTab;
+        });
+        // Reset so it doesn't re-trigger
+        Future.microtask(() => ref.read(mainTabProvider.notifier).state = null);
+      }
+    });
+
     // Count capsules that are locked but past their unlock date = ready to unlock
     final capsuleAsync = ref.watch(myCapsuleProvider);
     final readyCount =

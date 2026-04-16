@@ -81,7 +81,8 @@ public class AuthService : IAuthService
             Id = user.Id, DisplayName = user.DisplayName, Email = user.Email,
             ProfilePictureUrl = user.ProfilePictureUrl, Bio = user.Bio,
             AccentColor = user.AccentColor, CreatedAt = user.CreatedAt,
-            CapsuleCount = capsuleCount, PostCount = postCount
+            CapsuleCount = capsuleCount, PostCount = postCount,
+            TotalPoints = user.PointsBalance
         };
     }
 

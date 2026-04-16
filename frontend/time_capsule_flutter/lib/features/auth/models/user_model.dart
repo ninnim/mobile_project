@@ -7,6 +7,7 @@ class UserModel {
   final String createdAt;
   final int capsuleCount;
   final int postCount;
+  final int totalPoints;
 
   const UserModel({
     required this.id,
@@ -17,6 +18,7 @@ class UserModel {
     required this.createdAt,
     this.capsuleCount = 0,
     this.postCount = 0,
+    this.totalPoints = 150,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> j) => UserModel(
@@ -28,12 +30,14 @@ class UserModel {
     createdAt: j['createdAt'] as String? ?? '',
     capsuleCount: j['capsuleCount'] as int? ?? 0,
     postCount: j['postCount'] as int? ?? 0,
+    totalPoints: j['totalPoints'] as int? ?? 150,
   );
 
   UserModel copyWith({
     String? displayName,
     String? profilePictureUrl,
     String? bio,
+    int? totalPoints,
   }) => UserModel(
     id: id,
     email: email,
@@ -43,6 +47,7 @@ class UserModel {
     createdAt: createdAt,
     capsuleCount: capsuleCount,
     postCount: postCount,
+    totalPoints: totalPoints ?? this.totalPoints,
   );
 }
 

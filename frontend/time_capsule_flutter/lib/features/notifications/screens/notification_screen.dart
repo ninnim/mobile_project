@@ -46,7 +46,9 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
     return Scaffold(
       body: CustomScrollView(
         controller: _scrollCtrl,
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         slivers: [
           // ── App Bar ──
           SliverAppBar(
@@ -180,22 +182,24 @@ class _NotificationScreenState extends ConsumerState<NotificationScreen> {
                     return const SizedBox.shrink();
                   }
                   final notification = state.notifications[index];
-                  return _NotificationTile(
-                    notification: notification,
-                    index: index,
-                    onTap: () => _onNotificationTap(notification),
-                    onDismiss: () {
-                      HapticFeedback.lightImpact();
-                      ref
-                          .read(notificationProvider.notifier)
-                          .deleteNotification(notification.id);
-                    },
-                    onAcceptFriend: notification.type == 'FriendRequest'
-                        ? () => _handleFriendAction(notification, true)
-                        : null,
-                    onRejectFriend: notification.type == 'FriendRequest'
-                        ? () => _handleFriendAction(notification, false)
-                        : null,
+                  return RepaintBoundary(
+                    child: _NotificationTile(
+                      notification: notification,
+                      index: index,
+                      onTap: () => _onNotificationTap(notification),
+                      onDismiss: () {
+                        HapticFeedback.lightImpact();
+                        ref
+                            .read(notificationProvider.notifier)
+                            .deleteNotification(notification.id);
+                      },
+                      onAcceptFriend: notification.type == 'FriendRequest'
+                          ? () => _handleFriendAction(notification, true)
+                          : null,
+                      onRejectFriend: notification.type == 'FriendRequest'
+                          ? () => _handleFriendAction(notification, false)
+                          : null,
+                    ),
                   );
                 },
                 childCount:

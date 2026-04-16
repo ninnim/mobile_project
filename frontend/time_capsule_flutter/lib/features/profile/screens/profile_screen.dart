@@ -184,7 +184,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         color: scheme.primary,
         onRefresh: _loadData,
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           slivers: [
             _buildProfileHeader(context, scheme, isDark, user),
             _buildStatsBar(context, scheme, isDark, user),
@@ -408,44 +410,109 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: scheme.primary.withAlpha(30)),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                child: Column(
                   children: [
-                    _StatItem(
-                      value: '${user.postCount}',
-                      label: 'Posts',
-                      color: scheme.primary,
+                    // Stats row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _StatItem(
+                          value: '${user.postCount}',
+                          label: 'Posts',
+                          color: scheme.primary,
+                        ),
+                        Container(
+                            width: 1, height: 28,
+                            color: scheme.onSurface.withAlpha(20)),
+                        _StatItem(
+                          value: '${user.capsuleCount}',
+                          label: 'Capsules',
+                          color: scheme.secondary,
+                        ),
+                        Container(
+                            width: 1, height: 28,
+                            color: scheme.onSurface.withAlpha(20)),
+                        _StatItem(
+                          value: '$totalLikes',
+                          label: 'Likes',
+                          color: Colors.redAccent,
+                        ),
+                        Container(
+                            width: 1, height: 28,
+                            color: scheme.onSurface.withAlpha(20)),
+                        _StatItem(
+                          value: '$_friendCount',
+                          label: 'Friends',
+                          color: Colors.green,
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 10),
                     Container(
-                      width: 1,
-                      height: 28,
-                      color: scheme.onSurface.withAlpha(20),
+                        height: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        color: scheme.onSurface.withAlpha(15)),
+                    const SizedBox(height: 10),
+                    // Points row with spin button
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFD740).withAlpha(25),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.star_rounded,
+                                color: Color(0xFFFFD740), size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${user.totalPoints} pts',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 18,
+                                  color: Color(0xFFFFD740),
+                                ),
+                              ),
+                              Text(
+                                'Point Balance',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: scheme.onSurface.withAlpha(120),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          FilledButton.icon(
+                            onPressed: () async {
+                              await Navigator.pushNamed(context, '/spin');
+                              // Refresh user to get updated points balance
+                              _loadData();
+                            },
+                            icon: const Icon(Icons.casino_outlined, size: 16),
+                            label: const Text('Spin & Win',
+                                style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w700)),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFD740),
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    _StatItem(
-                      value: '${user.capsuleCount}',
-                      label: 'Capsules',
-                      color: scheme.secondary,
-                    ),
-                    Container(
-                      width: 1,
-                      height: 28,
-                      color: scheme.onSurface.withAlpha(20),
-                    ),
-                    _StatItem(
-                      value: '$totalLikes',
-                      label: 'Likes',
-                      color: Colors.redAccent,
-                    ),
-                    Container(
-                      width: 1,
-                      height: 28,
-                      color: scheme.onSurface.withAlpha(20),
-                    ),
-                    _StatItem(
-                      value: '$_friendCount',
-                      label: 'Friends',
-                      color: Colors.green,
-                    ),
+                    const SizedBox(height: 2),
                   ],
                 ),
               ),
@@ -465,7 +532,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (_postsLoading) {
       return SliverList(
         delegate: SliverChildBuilderDelegate(
-          (_, __) => const SkeletonCard(),
+          (_, _) => const SkeletonCard(),
           childCount: 3,
         ),
       );
@@ -525,10 +592,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
     return SliverList(
       delegate: SliverChildBuilderDelegate(
-        (context, index) => PostCard(
-          post: _posts[index],
-          onTapUser: () {},
-          onLike: _toggleLike,
+        (context, index) => RepaintBoundary(
+          child: PostCard(
+            post: _posts[index],
+            onTapUser: () {},
+            onLike: _toggleLike,
+          ),
         ),
         childCount: _posts.length,
       ),

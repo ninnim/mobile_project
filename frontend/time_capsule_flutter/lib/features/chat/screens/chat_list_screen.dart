@@ -54,13 +54,28 @@ class ChatListScreen extends ConsumerWidget {
                 onRefresh: () async => ref.refresh(contactsProvider),
                 child: ListView.builder(
                   padding: const EdgeInsets.only(bottom: 100),
+                  physics: const BouncingScrollPhysics(),
+                  cacheExtent: 400,
+                  addRepaintBoundaries: false,
                   itemCount: contacts.length,
                   itemBuilder: (ctx, i) {
                     final c = contacts[i];
-                    return _ContactTile(
-                      contact: c,
-                      onTap: () => onOpenChat(c.userId, c.displayName),
-                    ).animate(delay: Duration(milliseconds: i * 40)).fadeIn().slideX(begin: -0.03);
+                    final tile = RepaintBoundary(
+                      child: _ContactTile(
+                        contact: c,
+                        onTap: () => onOpenChat(c.userId, c.displayName),
+                      ),
+                    );
+                    if (i < 8) {
+                      return tile
+                          .animate(delay: Duration(milliseconds: i * 30))
+                          .fadeIn(duration: 220.ms)
+                          .slideX(
+                              begin: -0.02,
+                              duration: 220.ms,
+                              curve: Curves.easeOutCubic);
+                    }
+                    return tile;
                   },
                 ),
               ),

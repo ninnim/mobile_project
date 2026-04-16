@@ -3,8 +3,34 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/feed_provider.dart';
 import '../widgets/post_card.dart';
+import '../widgets/capsule_feed_card.dart';
+import '../../capsule/models/capsule_model.dart';
+import '../../capsule/screens/capsule_detail_screen.dart';
+import '../../../core/network/dio_client.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/skeleton_loader.dart';
+
+/// Fetches public capsules for the feed.
+final publicCapsulesProvider = FutureProvider.autoDispose<List<CapsuleModel>>((
+  ref,
+) async {
+  final res = await dioClient.get('/capsules/public');
+  return (res.data as List<dynamic>)
+      .map((e) => CapsuleModel.fromJson(e as Map<String, dynamic>))
+      .toList();
+});
+
+/// Unified feed item: either a post or a capsule.
+class _FeedItem {
+  final DateTime createdAt;
+  final dynamic data; // PostModel or CapsuleModel
+  final bool isCapsule;
+  _FeedItem({
+    required this.createdAt,
+    required this.data,
+    this.isCapsule = false,
+  });
+}
 
 class FeedScreen extends ConsumerWidget {
   final void Function(String userId) onTapUser;
@@ -19,7 +45,38 @@ class FeedScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(feedProvider);
+    final capsulesAsync = ref.watch(publicCapsulesProvider);
     final scheme = Theme.of(context).colorScheme;
+
+    // Build merged feed items
+    List<_FeedItem>? mergedItems;
+    if (!state.loading && state.error == null) {
+      final postItems = state.posts
+          .map(
+            (p) => _FeedItem(
+              createdAt: DateTime.tryParse(p.createdAt) ?? DateTime(2000),
+              data: p,
+            ),
+          )
+          .toList();
+
+      final capsuleItems =
+          capsulesAsync.whenOrNull(
+            data: (capsules) => capsules
+                .map(
+                  (c) => _FeedItem(
+                    createdAt: DateTime.tryParse(c.createdAt) ?? DateTime(2000),
+                    data: c,
+                    isCapsule: true,
+                  ),
+                )
+                .toList(),
+          ) ??
+          [];
+
+      mergedItems = [...postItems, ...capsuleItems]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -88,7 +145,7 @@ class FeedScreen extends ConsumerWidget {
               actionLabel: 'Try Again',
               onAction: () => ref.read(feedProvider.notifier).fetchFeed(),
             )
-          : state.posts.isEmpty
+          : (mergedItems == null || mergedItems.isEmpty)
           ? EmptyState(
               icon: Icons.newspaper_outlined,
               title: 'Be the first to post!',
@@ -98,20 +155,50 @@ class FeedScreen extends ConsumerWidget {
             )
           : RefreshIndicator(
               color: scheme.primary,
-              onRefresh: () =>
-                  ref.read(feedProvider.notifier).fetchFeed(refresh: true),
+              onRefresh: () async {
+                await ref.read(feedProvider.notifier).fetchFeed(refresh: true);
+                ref.invalidate(publicCapsulesProvider);
+              },
               child: ListView.builder(
                 padding: const EdgeInsets.only(top: 8, bottom: 100),
-                itemCount: state.posts.length,
-                itemBuilder: (ctx, i) =>
-                    PostCard(
-                          post: state.posts[i],
-                          onTapUser: () => onTapUser(state.posts[i].userId),
-                          onNavigateUser: onTapUser,
-                        )
-                        .animate(delay: Duration(milliseconds: i * 40))
-                        .fadeIn()
-                        .slideY(begin: 0.05),
+                physics: const BouncingScrollPhysics(),
+                cacheExtent: 600,
+                addRepaintBoundaries: false,
+                itemCount: mergedItems.length,
+                itemBuilder: (ctx, i) {
+                  final item = mergedItems![i];
+                  Widget card;
+                  if (item.isCapsule) {
+                    final capsule = item.data as CapsuleModel;
+                    card = CapsuleFeedCard(
+                      capsule: capsule,
+                      onTap: () => Navigator.push(
+                        ctx,
+                        MaterialPageRoute(
+                          builder: (_) => CapsuleDetailScreen(capsule: capsule),
+                        ),
+                      ),
+                    );
+                  } else {
+                    final post = item.data;
+                    card = PostCard(
+                      post: post,
+                      onTapUser: () => onTapUser(post.userId),
+                      onNavigateUser: onTapUser,
+                    );
+                  }
+                  final wrapped = RepaintBoundary(child: card);
+                  if (i < 5) {
+                    return wrapped
+                        .animate(delay: Duration(milliseconds: i * 35))
+                        .fadeIn(duration: 250.ms)
+                        .slideY(
+                            begin: 0.04,
+                            duration: 250.ms,
+                            curve: Curves.easeOutCubic);
+                  }
+                  return wrapped;
+                },
               ),
             ),
     );

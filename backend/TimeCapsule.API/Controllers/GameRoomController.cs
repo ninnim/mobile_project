@@ -38,6 +38,13 @@ public class GameRoomController : ControllerBase
     [HttpGet("my")]
     public async Task<IActionResult> GetMy() => Ok(await _rooms.GetMyAsync(UserId));
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var deleted = await _rooms.DeleteAsync(id, UserId);
+        return deleted ? NoContent() : NotFound(new { error = "Room not found or you are not the creator." });
+    }
+
     [HttpGet("{id:guid}/leaderboard")]
     public async Task<IActionResult> GetLeaderboard(Guid id)
     {

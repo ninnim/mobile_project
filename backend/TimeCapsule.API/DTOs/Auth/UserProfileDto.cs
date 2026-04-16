@@ -11,6 +11,7 @@ public class UserProfileDto
     public DateTime CreatedAt { get; set; }
     public int CapsuleCount { get; set; }
     public int PostCount { get; set; }
+    public int TotalPoints { get; set; }
 }
 
 public class UpdateProfileDto

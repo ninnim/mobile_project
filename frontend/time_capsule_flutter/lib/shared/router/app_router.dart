@@ -7,6 +7,7 @@ import '../../features/capsule/screens/create_capsule_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/gameroom/screens/gameroom_detail_screen.dart';
 import '../../features/gameroom/screens/create_gameroom_screen.dart';
+import '../../features/spin/screens/spin_wheel_screen.dart';
 
 class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -55,6 +56,11 @@ class AppRouter {
         );
       case '/settings':
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
+      case '/spin':
+        return MaterialPageRoute(
+          builder: (_) => const SpinWheelScreen(),
+          fullscreenDialog: true,
+        );
       default:
         return MaterialPageRoute(
           builder: (_) =>
